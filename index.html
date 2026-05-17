@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Task Master</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    .d-none { display: none !important; }
     body { background-color: #f4f7f6; font-family: 'Poppins', sans-serif; padding-bottom: 80px; color: #333; }
     
     .navbar { background: linear-gradient(135deg, #0d6efd, #0b5ed7) !important; padding: 12px 15px; }
@@ -72,11 +72,9 @@
     <div class="container-fluid px-3">
       <span class="navbar-brand mb-0 h1 fw-bold" style="font-size: 1.3rem;">📝 Task Master</span>
       <div class="d-flex gap-2">
-        <!-- REFRESH BUTTON -->
         <button class="btn btn-sm btn-light text-primary d-none fw-bold px-3" id="refreshBtn" onclick="refreshDashboard()" style="height: 35px;">
           <span id="refreshIcon">🔄</span> Refresh
         </button>
-        <!-- LOGOUT BUTTON -->
         <button class="btn btn-sm btn-danger d-none fw-bold px-3" id="logoutBtn" onclick="logoutUser()" style="height: 35px; background-color: #dc3545; border: none;">
           Logout
         </button>
@@ -89,7 +87,7 @@
     <!-- AUTHENTICATING SCREEN -->
     <div id="loadingSection" class="d-none">
       <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
-      <p class="mt-3 text-muted fw-bold">Authenticating session...</p>
+      <p class="mt-3 text-muted fw-bold">Connecting to server...</p>
     </div>
 
     <!-- LOGIN SECTION -->
@@ -259,11 +257,34 @@
   </div>
 </div>
 
-<!-- BOOTSTRAP JS REQUIRED FOR ACCORDIONS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
+  // =====================================
+  // API INTEGRATION SETUP
+  // =====================================
+  // This URL MUST point to your deployed Google Apps Script (doPost enabled)
+  const API_URL = "https://script.google.com/macros/s/AKfycbw-Ixi9_0NzlSybp8Aopx2V688vYoJv4ek3dmnbZHmHUaEFXP1QdkwgQR2c3ZoBl6lM/exec";
+  
   let currentUserEmail = "", allActiveUsers = [], allMasterTasks = [];
+
+  // Core API Wrapper
+  async function callApi(action, payload = {}) {
+    payload.action = action;
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Ensures no CORS preflight issues
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+      if(!result.success) throw new Error(result.message);
+      return result.data;
+    } catch (error) {
+      console.error("API Call Failed:", error);
+      throw error;
+    }
+  }
 
   // =====================================
   // INITIALIZATION & SESSION PERSISTENCE
@@ -272,34 +293,26 @@
     const savedEmail = localStorage.getItem('taskMasterUserEmail');
     
     if (savedEmail) {
-      // User has a saved session, let's verify if they are still 'Active'
       document.getElementById('loadingSection').classList.remove('d-none');
       
-      google.script.run
-        .withSuccessHandler(res => {
+      callApi('checkUserStatus', { email: savedEmail })
+        .then(res => {
           document.getElementById('loadingSection').classList.add('d-none');
-          
           if (res.status === "Active") {
             loginSuccess(savedEmail, res);
           } else {
-            // User was deleted or marked Inactive by Admin. Force logout.
             localStorage.removeItem('taskMasterUserEmail');
             document.getElementById('loginSection').classList.remove('d-none');
-            if (res.status === "Inactive") {
-              alert("Your account has been deactivated by the Admin. Please contact support.");
-            }
+            if (res.status === "Inactive") alert("Your account has been deactivated by the Admin.");
           }
         })
-        .withFailureHandler(err => {
-          // Network Error fallback
+        .catch(err => {
           document.getElementById('loadingSection').classList.add('d-none');
           document.getElementById('loginSection').classList.remove('d-none');
-          document.getElementById('loginMsg').innerText = "Network error while authenticating.";
-        })
-        .checkUserStatus(savedEmail);
+          document.getElementById('loginMsg').innerText = "Network error. Please login again.";
+        });
         
     } else {
-      // No saved session, show login form
       document.getElementById('loginSection').classList.remove('d-none');
     }
   });
@@ -314,8 +327,8 @@
     toggleBtn('sendBtn', true, 'Sending OTP...');
     document.getElementById('loginMsg').innerText = "";
     
-    google.script.run
-      .withSuccessHandler(res => {
+    callApi('sendOtp', { email: email })
+      .then(res => {
         if(res.includes("OTP Sent")) {
           document.getElementById('otpDiv').classList.remove('d-none'); 
           document.getElementById('sendBtn').classList.add('d-none');
@@ -325,11 +338,10 @@
           toggleBtn('sendBtn', false, 'Send Verification OTP'); 
         }
       })
-      .withFailureHandler(err => {
+      .catch(err => {
         document.getElementById('loginMsg').innerText = "Server Error. Try again.";
         toggleBtn('sendBtn', false, 'Send Verification OTP'); 
-      })
-      .sendOtp(email);
+      });
   }
 
   function verifyOtp() {
@@ -337,10 +349,9 @@
     if(!otp) return alert("Please enter the OTP");
     toggleBtn('verifyBtn', true, 'Verifying...');
     
-    google.script.run
-      .withSuccessHandler(res => {
+    callApi('verifyOtp', { email: email, otp: otp })
+      .then(res => {
         if(res.status === "Success") {
-          // Save the email to LocalStorage to keep user logged in securely
           localStorage.setItem('taskMasterUserEmail', email);
           loginSuccess(email, res);
         } else { 
@@ -348,11 +359,10 @@
           toggleBtn('verifyBtn', false, 'Verify & Secure Login'); 
         }
       })
-      .withFailureHandler(err => {
+      .catch(err => {
         document.getElementById('loginMsg').innerText = "Server error occurred.";
         toggleBtn('verifyBtn', false, 'Verify & Secure Login');
-      })
-      .verifyOtp(email, otp);
+      });
   }
 
   function loginSuccess(email, data) {
@@ -360,7 +370,6 @@
     document.getElementById('loginSection').classList.add('d-none');
     document.getElementById('dashboardSection').classList.remove('d-none');
     
-    // UNHIDE NAVBAR BUTTONS
     document.getElementById('logoutBtn').classList.remove('d-none');
     document.getElementById('refreshBtn').classList.remove('d-none');
     
@@ -375,14 +384,10 @@
   }
 
   function logoutUser() {
-    // Clear the saved session data and reload the page
     localStorage.removeItem('taskMasterUserEmail');
     location.reload();
   }
 
-  // =====================================
-  // REFRESH FUNCTIONALITY
-  // =====================================
   function refreshDashboard() {
     const btn = document.getElementById('refreshBtn');
     const icon = document.getElementById('refreshIcon');
@@ -390,15 +395,13 @@
     btn.disabled = true;
     icon.innerHTML = "⏳";
     
-    loadMyTasks(); // Refresh personal tasks
+    loadMyTasks(); 
     
-    // Refresh Admin data if applicable
     if (document.getElementById('userRoleDisplay').innerText === 'Admin') {
       loadMasterTasks();
       loadUsersData();
     }
     
-    // Visual reset after 1.5 seconds
     setTimeout(() => {
       btn.disabled = false;
       icon.innerHTML = "🔄";
@@ -443,7 +446,7 @@
   // DATA FETCHING
   // =====================================
   function loadUsersData() {
-    google.script.run.withSuccessHandler(users => {
+    callApi('getUserList').then(users => {
       allActiveUsers = users;
       const depts = [...new Set(users.map(u => u.dept))];
       const populate = (id) => {
@@ -452,7 +455,7 @@
       };
       populate('deptFilter'); populate('reportDept'); populate('transferDeptFilter'); populate('bulkDept');
       filterUsersByDept('create'); filterUsersByDept('report'); filterUsersByDept('transfer'); filterUsersByDept('bulk');
-    }).getUserList();
+    });
   }
 
   function filterUsersByDept(ctx) {
@@ -476,7 +479,7 @@
     const listDiv = document.getElementById('taskList');
     listDiv.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div><p class="mt-2 text-muted">Loading your tasks...</p></div>';
     
-    google.script.run.withSuccessHandler(tasks => {
+    callApi('getMyTasks', { email: currentUserEmail }).then(tasks => {
       listDiv.innerHTML = "";
       if(tasks.length === 0) return listDiv.innerHTML = `<div class="text-center text-muted py-5 bg-white rounded-4 border"><h1 style="font-size: 40px;">🎉</h1><h5 class="fw-bold mt-2">All Caught Up!</h5><p class="small">You have no pending tasks for today.</p></div>`;
       
@@ -527,8 +530,7 @@
       
       htmlContent += '</div>';
       listDiv.innerHTML = htmlContent;
-      
-    }).getMyTasks(currentUserEmail);
+    });
   }
 
   function uploadProof(id, proofReqStatus) {
@@ -546,17 +548,19 @@
     if (f.files.length > 0) {
       const r = new FileReader();
       r.onload = e => {
-        google.script.run.withSuccessHandler(res => {
-          alert(res === "Success" ? "Task Completed Successfully! ✅" : res);
-          if(res==="Success") loadMyTasks(); else toggleBtn('btn-'+id, false, '✅ Mark as Completed');
-        }).uploadProofAndMarkDone(e.target.result, id, rem);
+        callApi('uploadProofAndMarkDone', { base64Data: e.target.result, rowId: id, remarks: rem })
+          .then(res => {
+            alert(res === "Success" ? "Task Completed Successfully! ✅" : res);
+            if(res==="Success") loadMyTasks(); else toggleBtn('btn-'+id, false, '✅ Mark as Completed');
+          });
       };
       r.readAsDataURL(f.files[0]);
     } else {
-      google.script.run.withSuccessHandler(res => {
-        alert(res === "Success" ? "Task Completed Successfully! ✅" : res);
-        if(res==="Success") loadMyTasks(); else toggleBtn('btn-'+id, false, '✅ Mark as Completed');
-      }).uploadProofAndMarkDone("", id, rem);
+      callApi('uploadProofAndMarkDone', { base64Data: "", rowId: id, remarks: rem })
+        .then(res => {
+          alert(res === "Success" ? "Task Completed Successfully! ✅" : res);
+          if(res==="Success") loadMyTasks(); else toggleBtn('btn-'+id, false, '✅ Mark as Completed');
+        });
     }
   }
 
@@ -570,19 +574,19 @@
     toggleBtn('createBtn', true, 'Creating Tasks...');
     const d = { taskName: f.taskName.value, instructions: f.instructions.value, userEmail: f.userSelect.value, frequency: f.frequency.value, startDate: f.startDate.value, endDate: f.endDate.value, proofRequired: f.proofRequired.value };
     
-    google.script.run.withSuccessHandler(res => { 
+    callApi('createAndGenerateTasks', { form: d }).then(res => { 
       alert(res); 
       toggleBtn('createBtn', false, '🚀 Create & Assign Tasks'); 
       f.reset(); 
-    }).createAndGenerateTasks(d);
+    });
   }
 
   function loadMasterTasks() {
-    google.script.run.withSuccessHandler(t => {
+    callApi('getAllMasterTasks').then(t => {
       allMasterTasks = t;
       const s = document.getElementById('masterTaskSelect'); s.innerHTML = '<option value="">-- Choose Task --</option>';
       t.forEach(x => s.innerHTML += `<option value="${x.id}">${x.name} (Ends: ${x.currentEnd})</option>`);
-    }).getAllMasterTasks();
+    });
   }
   
   function updateDateLabel() {
@@ -607,13 +611,14 @@
     const fq = document.getElementById('extendFrequency').value;
     if(!tid || !dt) return alert("Select a task and a new end date.");
     toggleBtn('extendBtn', true, 'Updating...');
-    google.script.run.withSuccessHandler(res => { 
+    
+    callApi('extendTaskDuration', { taskId: tid, newEndDateStr: dt, newFrequency: fq }).then(res => { 
       alert(res); 
       toggleBtn('extendBtn', false, 'Update Task Validity');
       document.getElementById('newExtensionDate').value = '';
       document.getElementById('masterTaskSelect').value = '';
       updateDateLabel();
-    }).extendTaskDuration(tid, dt, fq);
+    });
   }
 
   function transferTask() {
@@ -621,14 +626,15 @@
     if(!tid || !u) return alert("Select task and new user");
     if(!confirm("Are you sure you want to change the owner of all pending/future instances of this task?")) return;
     toggleBtn('transferBtn', true, 'Transferring...');
-    google.script.run.withSuccessHandler(res => { 
+    
+    callApi('reassignFutureTasks', { taskId: tid, newUserEmail: u }).then(res => { 
       alert(res); 
       toggleBtn('transferBtn', false, 'Transfer Pending Tasks'); 
       loadMasterTasks();
       document.getElementById('transferUserSelect').value = '';
       document.getElementById('masterTaskSelect').value = '';
       updateDateLabel();
-    }).reassignFutureTasks(tid, u);
+    });
   }
 
   function stopTask() {
@@ -636,13 +642,14 @@
     if(!tid) return alert("Select a task first");
     if(!confirm("Are you entirely sure? This will delete all pending tasks associated with this Master Task.")) return;
     toggleBtn('stopBtn', true, 'Stopping...');
-    google.script.run.withSuccessHandler(res => { 
+    
+    callApi('forceStopTask', { taskId: tid }).then(res => { 
       alert(res); 
       toggleBtn('stopBtn', false, 'Stop & Delete Pending'); 
       loadMasterTasks(); 
       document.getElementById('masterTaskSelect').value = '';
       updateDateLabel();
-    }).forceStopTask(tid);
+    });
   }
 
   // =====================================
@@ -654,7 +661,7 @@
     if(!u) return c.innerHTML = '<div class="text-center text-muted small py-4">Please select a user first</div>';
     
     c.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
-    google.script.run.withSuccessHandler(t => {
+    callApi('getTasksByUser', { email: u }).then(t => {
       c.innerHTML = ""; if(t.length === 0) return c.innerHTML = '<div class="text-center text-danger small py-3 fw-bold">No master tasks assigned to this user.</div>';
       t.forEach(x => c.innerHTML += `
         <div class="form-check border-bottom py-2">
@@ -664,7 +671,7 @@
             <span class="text-danger fw-bold" style="font-size:11px;">Current End Date: ${x.currentEnd}</span>
           </label>
         </div>`);
-    }).getTasksByUser(u);
+    });
   }
 
   function selectAllBulk() { document.querySelectorAll('.bulk-check').forEach(c => c.checked = true); }
@@ -677,13 +684,13 @@
     const ids = Array.from(chks).map(c => c.value);
     toggleBtn('bulkBtn', true, 'Processing...');
     
-    google.script.run.withSuccessHandler(res => { 
+    callApi('processBulkExtension', { taskIds: ids, newDateStr: dt }).then(res => { 
       alert(res); 
       toggleBtn('bulkBtn', false, 'Extend All Selected'); 
       document.getElementById('bulkDate').value = '';
       document.getElementById('bulkUser').value = '';
       document.getElementById('bulkTaskContainer').innerHTML = '<div class="text-center text-muted small py-4">Please select a user first</div>';
-    }).processBulkExtension(ids, dt);
+    });
   }
 
   function getReport() {
@@ -693,7 +700,7 @@
     const rDiv = document.getElementById('reportResults'); 
     rDiv.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
     
-    google.script.run.withSuccessHandler(res => {
+    callApi('getAdminReport', { filters: { userEmail: u, date: d, status: document.getElementById('reportStatus').value } }).then(res => {
       toggleBtn('reportBtn', false, 'Generate Report'); rDiv.innerHTML = "";
       if(res.length === 0) return rDiv.innerHTML = `<div class="alert alert-warning small fw-bold text-center py-4">No task records found for this criteria.</div>`;
       
@@ -727,7 +734,7 @@
           ${noProofTag}
         </div>`;
       });
-    }).getAdminReport({ userEmail: u, date: d, status: document.getElementById('reportStatus').value });
+    });
   }
 
   function rejectTask(rowId, email, details) {
@@ -743,10 +750,11 @@
     
     toggleBtn('rej-'+rowId, true, 'Rejecting...');
     
-    google.script.run.withSuccessHandler(res => {
-      alert(res);
-      getReport(); 
-    }).rejectUserTask(rowId, email, details, currentUserEmail, rejectRemark);
+    callApi('rejectUserTask', { rowId: rowId, email: email, details: details, adminEmail: currentUserEmail, rejectRemark: rejectRemark })
+      .then(res => {
+        alert(res);
+        getReport(); 
+      });
   }
 
   function toggleBtn(id, d, t) { const b = document.getElementById(id); b.disabled = d; b.innerText = t; }

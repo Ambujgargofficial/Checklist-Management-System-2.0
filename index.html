@@ -128,7 +128,7 @@
       <div class="mobile-card p-3 mb-4 custom-shadow bg-white d-flex justify-content-between align-items-center border-start border-4 border-primary">
         <div>
           <p class="text-muted small mb-0 fw-bold">LOGGED IN AS</p>
-          <h5 class="fw-bold m-0 text-dark" id="userNameDisplay">User Name</h5>
+          <h5 class="fw-bold m-0 text-primary" id="userNameDisplay" style="font-size: 1.1rem;">User Name</h5>
         </div>
         <div>
           <!-- This standard badge shows for regular users -->
@@ -402,12 +402,14 @@
   document.addEventListener("DOMContentLoaded", () => {
     const savedEmail = localStorage.getItem('taskMasterUserEmail');
     
-    // Set default dates for performance to current month
+    // Set default dates for performance to current month properly using Local time
     const dateObj = new Date();
-    const firstDay = new Date(dateObj.getFullYear(), dateObj.getMonth(), 1).toISOString().split('T')[0];
-    const todayStr = dateObj.toISOString().split('T')[0];
-    document.getElementById('perfStartDate').value = firstDay;
-    document.getElementById('perfEndDate').value = todayStr;
+    const yyyy = dateObj.getFullYear();
+    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    
+    document.getElementById('perfStartDate').value = `${yyyy}-${mm}-01`;
+    document.getElementById('perfEndDate').value = `${yyyy}-${mm}-${dd}`;
 
     if (savedEmail) {
       document.getElementById('loadingSection').classList.remove('d-none');
@@ -551,7 +553,8 @@
     
     loadMyTasks(); 
     
-    if (currentUserRole.toLowerCase() === 'admin') {
+    const roleText = document.getElementById('userRoleDisplay').innerText;
+    if (roleText && roleText.trim().toLowerCase() === 'admin') {
       loadMasterTasks();
       loadUsersData();
       loadAdminUsers();
@@ -686,9 +689,9 @@
         let isPhotoReq = (t.proofReq === "No") ? "d-none" : "";
         let photoLabel = (t.proofReq === "No") ? "" : '<label class="label-small text-danger mt-3">📷 Photo Proof (Required)</label>';
 
-        let expandedClass = index === 0 ? "show" : "";
-        let buttonCollapsed = index === 0 ? "" : "collapsed";
-        let ariaExpanded = index === 0 ? "true" : "false";
+        let expandedClass = ""; 
+        let buttonCollapsed = "collapsed"; 
+        let ariaExpanded = "false"; 
 
         htmlContent += `
         <div class="task-card accordion-item">

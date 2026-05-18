@@ -1046,7 +1046,7 @@
             
             <div class="row g-2">
               <div class="col-3">
-                <div class="stat-box">
+                <div class="stat-box" onclick="showDrillDown('total', ${idx})">
                   <div class="stat-val text-dark">${u.total}</div>
                   <div class="stat-lbl">Total</div>
                 </div>
@@ -1070,7 +1070,7 @@
                 </div>
               </div>
             </div>
-            <div class="text-center mt-2" style="font-size: 10px; color: #aaa;">Tap on On-Time, Late, or Pending to view details.</div>
+            <div class="text-center mt-2" style="font-size: 10px; color: #aaa;">Tap on any stat to view task details.</div>
           </div>`;
         });
       })
@@ -1088,14 +1088,21 @@
     let titleStr = "";
     
     if (category === 'onTime') {
-      tasks = userData.tasks.onTime;
+      tasks = userData.tasks.onTime.map(t => ({...t, displayType: 'onTime'}));
       titleStr = "✅ On-Time Tasks";
     } else if (category === 'late') {
-      tasks = userData.tasks.late;
+      tasks = userData.tasks.late.map(t => ({...t, displayType: 'late'}));
       titleStr = "⏳ Late Tasks";
     } else if (category === 'pending') {
-      tasks = userData.tasks.pending;
+      tasks = userData.tasks.pending.map(t => ({...t, displayType: 'pending'}));
       titleStr = "❌ Pending Tasks";
+    } else if (category === 'total') {
+      tasks = [
+        ...userData.tasks.onTime.map(t => ({...t, displayType: 'onTime'})),
+        ...userData.tasks.late.map(t => ({...t, displayType: 'late'})),
+        ...userData.tasks.pending.map(t => ({...t, displayType: 'pending'}))
+      ];
+      titleStr = "📋 All Tasks (Total)";
     }
 
     document.getElementById('drillDownTitle').innerText = `${userData.name} - ${titleStr}`;
@@ -1108,11 +1115,20 @@
     } else {
       tasks.forEach(t => {
         let name = t.details.split(' - ')[0];
-        let extra = category === 'pending' ? `<span class="badge bg-danger">Assigned: ${t.date}</span>` : `<span class="badge bg-secondary">Done: ${t.doneTime}</span>`;
+        let extra = "";
+        
+        if (t.displayType === 'pending') {
+          extra = `<span class="badge bg-danger mb-1 me-1">Assigned: ${t.date}</span> <span class="badge bg-secondary mb-1">Status: Pending</span>`;
+        } else if (t.displayType === 'onTime') {
+          extra = `<span class="badge bg-primary mb-1 me-1">Assigned: ${t.date}</span> <span class="badge bg-success mb-1">Done: ${t.doneTime}</span>`;
+        } else if (t.displayType === 'late') {
+          extra = `<span class="badge bg-primary mb-1 me-1">Assigned: ${t.date}</span> <span class="badge bg-warning text-dark mb-1">Done: ${t.doneTime}</span>`;
+        }
+
         bodyDiv.innerHTML += `
           <div class="bg-white p-3 rounded border mb-2 shadow-sm">
             <div class="fw-bold text-dark" style="font-size:13px;">${name}</div>
-            <div class="mt-1">${extra}</div>
+            <div class="mt-2">${extra}</div>
           </div>
         `;
       });

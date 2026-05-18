@@ -130,7 +130,15 @@
           <p class="text-muted small mb-0 fw-bold">LOGGED IN AS</p>
           <h5 class="fw-bold m-0 text-dark" id="userNameDisplay">User Name</h5>
         </div>
-        <span class="badge bg-primary text-white rounded-pill px-3 py-2 custom-shadow" id="userRoleDisplay">User</span>
+        <div>
+          <!-- This standard badge shows for regular users -->
+          <span class="badge bg-primary text-white rounded-pill px-3 py-2 custom-shadow" id="userRoleDisplay">User</span>
+          <!-- This interactive dropdown shows ONLY for admins to switch views -->
+          <select id="adminViewToggle" class="form-select form-select-sm fw-bold bg-primary text-white border-0 rounded-pill d-none" style="width: auto; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); outline: none;" onchange="toggleAdminView()">
+            <option value="admin">⚙️ Admin View</option>
+            <option value="user">📌 My Tasks View</option>
+          </select>
+        </div>
       </div>
 
       <!-- ADMIN PANEL -->
@@ -333,10 +341,12 @@
       </div>
 
       <!-- MY TASKS SECTION -->
-      <div class="d-flex justify-content-between align-items-center mb-3 mt-4 px-1 border-bottom pb-2">
-        <h6 class="text-dark fw-bold mb-0 text-uppercase" style="letter-spacing: 1px;">📌 My Pending Tasks</h6>
+      <div id="userTasksSection">
+        <div class="d-flex justify-content-between align-items-center mb-3 mt-4 px-1 border-bottom pb-2">
+          <h6 class="text-dark fw-bold mb-0 text-uppercase" style="letter-spacing: 1px;">📌 My Pending Tasks</h6>
+        </div>
+        <div id="taskList"></div>
       </div>
-      <div id="taskList"></div>
       
     </div>
   </div>
@@ -365,7 +375,7 @@
   // =====================================
   const API_URL = "https://script.google.com/macros/s/AKfycbw-Ixi9_0NzlSybp8Aopx2V688vYoJv4ek3dmnbZHmHUaEFXP1QdkwgQR2c3ZoBl6lM/exec";
   
-  let currentUserEmail = "", allActiveUsers = [], allMasterTasks = [];
+  let currentUserEmail = "", currentUserRole = "", allActiveUsers = [], allMasterTasks = [];
   let latestPerformanceData = []; // Store performance data for modal drill down
 
   // Core API Wrapper
@@ -483,6 +493,8 @@
 
   function loginSuccess(email, data) {
     currentUserEmail = email;
+    currentUserRole = data.role ? data.role.trim() : 'User';
+    
     document.getElementById('loginSection').classList.add('d-none');
     document.getElementById('dashboardSection').classList.remove('d-none');
     
@@ -494,11 +506,34 @@
     
     loadMyTasks();
     
-    // Robust check for Admin to avoid whitespace issues
-    if(data.role && data.role.trim().toLowerCase() === 'admin') { 
-      document.getElementById('adminPanel').classList.remove('d-none'); 
+    // Robust check for Admin to setup the toggle view
+    if(currentUserRole.toLowerCase() === 'admin') { 
+      document.getElementById('userRoleDisplay').classList.add('d-none');
+      document.getElementById('adminViewToggle').classList.remove('d-none');
+      document.getElementById('adminViewToggle').value = 'admin'; // Default to admin view
+      
+      toggleAdminView(); // Apply the view rules
+      
       loadUsersData(); 
       loadAdminUsers();
+      loadMasterTasks(); 
+    } else {
+      // Standard user view setup
+      document.getElementById('userRoleDisplay').classList.remove('d-none');
+      document.getElementById('adminViewToggle').classList.add('d-none');
+      document.getElementById('adminPanel').classList.add('d-none');
+      document.getElementById('userTasksSection').classList.remove('d-none');
+    }
+  }
+
+  function toggleAdminView() {
+    const view = document.getElementById('adminViewToggle').value;
+    if (view === 'admin') {
+      document.getElementById('adminPanel').classList.remove('d-none');
+      document.getElementById('userTasksSection').classList.add('d-none');
+    } else {
+      document.getElementById('adminPanel').classList.add('d-none');
+      document.getElementById('userTasksSection').classList.remove('d-none');
     }
   }
 
@@ -516,8 +551,7 @@
     
     loadMyTasks(); 
     
-    const roleText = document.getElementById('userRoleDisplay').innerText;
-    if (roleText && roleText.trim().toLowerCase() === 'admin') {
+    if (currentUserRole.toLowerCase() === 'admin') {
       loadMasterTasks();
       loadUsersData();
       loadAdminUsers();

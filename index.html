@@ -261,8 +261,17 @@
                 <div class="col-6"><label class="label-small">User</label><select id="reportUser" class="form-select"><option value="">Select User</option></select></div>
               </div>
               <div class="row g-2 mb-3">
-                <div class="col-6"><label class="label-small">Filter Date</label><input type="date" id="reportDate" class="form-control"></div>
-                <div class="col-6"><label class="label-small">Status</label><select id="reportStatus" class="form-select"><option value="All">All</option><option value="Pending">Pending</option><option value="Done">Done</option></select></div>
+                <div class="col-6">
+                  <div class="d-flex justify-content-between align-items-end mb-1">
+                    <label class="label-small mb-0">Filter Date</label>
+                    <div class="form-check p-0 m-0">
+                      <input type="checkbox" class="form-check-input" id="reportTillDate" style="float:none; margin-right: 2px; margin-top: 1px; width: 0.9em; height: 0.9em;">
+                      <label class="form-check-label" for="reportTillDate" style="font-size: 10px; font-weight: bold; color: #dc3545; vertical-align: middle;">Till Date (<=)</label>
+                    </div>
+                  </div>
+                  <input type="date" id="reportDate" class="form-control">
+                </div>
+                <div class="col-6"><label class="label-small" style="margin-bottom: 20px;">Status</label><select id="reportStatus" class="form-select" style="margin-top: -14px;"><option value="All">All</option><option value="Pending">Pending</option><option value="Done">Done</option></select></div>
               </div>
               <button onclick="getReport()" class="btn btn-dark w-100 fw-bold" id="reportBtn">Generate Report</button>
             </div>
@@ -847,16 +856,16 @@
 
   function getReport() {
     const u = document.getElementById('reportUser').value, d = document.getElementById('reportDate').value;
+    const tillDate = document.getElementById('reportTillDate').checked;
+    
     if(!u || !d) return alert("Select User & Date");
     toggleBtn('reportBtn', true, 'Fetching Report...');
     const rDiv = document.getElementById('reportResults'); 
     rDiv.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
     
-    callApi('getAdminReport', { filters: { userEmail: u, date: d, status: document.getElementById('reportStatus').value } }).then(res => {
+    callApi('getAdminReport', { filters: { userEmail: u, date: d, status: document.getElementById('reportStatus').value, tillDate: tillDate } }).then(res => {
       toggleBtn('reportBtn', false, 'Generate Report'); rDiv.innerHTML = "";
       if(res.length === 0) return rDiv.innerHTML = `<div class="alert alert-warning small fw-bold text-center py-4">No task records found for this criteria.</div>`;
-      
-      let displayDate = new Date(d).toDateString();
       
       res.forEach(r => {
         let cls = r.status === 'Done' ? 'badge-done' : 'badge-pending';
@@ -877,7 +886,7 @@
           <div class="d-flex justify-content-between align-items-center mb-2">
             <div>
               <div class="fw-bold" style="font-size: 15px; color: #2c3e50;">${details[0]}</div>
-              <div class="text-muted" style="font-size: 11px; margin-top: 2px;">📅 ${displayDate}</div>
+              <div class="text-muted" style="font-size: 11px; margin-top: 2px;">📅 ${r.taskDate}</div>
             </div>
             <span class="status-badge ${cls}">${r.status}</span>
           </div>

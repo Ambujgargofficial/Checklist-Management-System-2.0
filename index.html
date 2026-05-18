@@ -69,13 +69,13 @@
 <div class="container-fluid p-0" style="max-width: 600px; margin: 0 auto;">
   <!-- NAVBAR -->
   <nav class="navbar navbar-dark sticky-top shadow-sm">
-    <div class="container-fluid px-3">
-      <span class="navbar-brand mb-0 h1 fw-bold" style="font-size: 1.3rem;">📝 Task Master</span>
-      <div class="d-flex gap-2">
-        <button class="btn btn-sm btn-light text-primary d-none fw-bold px-3" id="refreshBtn" onclick="refreshDashboard()" style="height: 35px;">
+    <div class="container-fluid px-2 d-flex flex-nowrap justify-content-between align-items-center">
+      <span class="navbar-brand mb-0 h1 fw-bold text-truncate" style="font-size: 1.2rem; max-width: 50%;">📝 Task Master</span>
+      <div class="d-flex gap-1 flex-nowrap">
+        <button class="btn btn-sm btn-light text-primary d-none fw-bold px-2" id="refreshBtn" onclick="refreshDashboard()" style="height: 32px; font-size: 12px; white-space: nowrap;">
           <span id="refreshIcon">🔄</span> Refresh
         </button>
-        <button class="btn btn-sm btn-danger d-none fw-bold px-3" id="logoutBtn" onclick="logoutUser()" style="height: 35px; background-color: #dc3545; border: none;">
+        <button class="btn btn-sm btn-danger d-none fw-bold px-2" id="logoutBtn" onclick="logoutUser()" style="height: 32px; background-color: #dc3545; border: none; font-size: 12px; white-space: nowrap;">
           Logout
         </button>
       </div>
@@ -132,11 +132,12 @@
         <div class="mobile-card p-3 custom-shadow" style="border: 1px solid #e2e8f0;">
           <h6 class="text-primary fw-bold mb-3 text-center text-uppercase" style="letter-spacing: 1px;">⚙️ Admin Controls</h6>
           
-          <ul class="nav nav-pills nav-fill mb-4">
+          <ul class="nav nav-pills nav-fill mb-4 flex-wrap gap-1">
             <li class="nav-item"><button class="nav-link active" onclick="switchTab('new')" id="tabNew">➕ Create</button></li>
             <li class="nav-item"><button class="nav-link" onclick="switchTab('old')" id="tabOld">🛠️ Manage</button></li>
             <li class="nav-item"><button class="nav-link" onclick="switchTab('bulk')" id="tabBulk">📦 Bulk</button></li>
             <li class="nav-item"><button class="nav-link" onclick="switchTab('report')" id="tabReport">📊 Reports</button></li>
+            <li class="nav-item"><button class="nav-link" onclick="switchTab('users')" id="tabUsers">👥 Users</button></li>
           </ul>
 
           <!-- Create Task -->
@@ -260,6 +261,40 @@
             </div>
             <div id="reportResults"></div>
           </div>
+
+          <!-- Manage Users -->
+          <div id="viewUsers" class="d-none">
+            <div class="bg-light p-3 rounded border mb-4">
+              <h6 class="text-secondary fw-bold mb-3" style="font-size: 13px; text-transform: uppercase;">👤 Add / Edit User</h6>
+              <form id="adminUserForm">
+                <input type="email" id="adminUserEmail" class="form-control mb-2" placeholder="User Email" required>
+                <input type="text" id="adminUserName" class="form-control mb-2" placeholder="Full Name" required>
+                <div class="row g-2 mb-2">
+                  <div class="col-6">
+                    <select id="adminUserRole" class="form-select">
+                      <option value="User">Role: User</option>
+                      <option value="Admin">Role: Admin</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
+                    <select id="adminUserStatus" class="form-select">
+                      <option value="Active">Status: Active</option>
+                      <option value="Inactive">Status: Inactive</option>
+                    </select>
+                  </div>
+                </div>
+                <input type="text" id="adminUserDept" class="form-control mb-3" placeholder="Department (e.g. Sales)" required>
+                <div class="d-flex gap-2">
+                  <button type="button" onclick="saveAdminUser()" class="btn btn-success w-100 fw-bold" id="saveUserBtn">Save User</button>
+                  <button type="button" onclick="resetUserForm()" class="btn btn-secondary w-100 fw-bold" id="resetUserBtn">Clear</button>
+                </div>
+              </form>
+            </div>
+            
+            <h6 class="text-secondary fw-bold mb-3" style="font-size: 13px; text-transform: uppercase;">📋 Existing Users</h6>
+            <div id="adminUsersList"></div>
+          </div>
+
         </div>
       </div>
 
@@ -279,7 +314,6 @@
   // =====================================
   // API INTEGRATION SETUP
   // =====================================
-  // This URL MUST point to your deployed Google Apps Script (doPost enabled)
   const API_URL = "https://script.google.com/macros/s/AKfycbw-Ixi9_0NzlSybp8Aopx2V688vYoJv4ek3dmnbZHmHUaEFXP1QdkwgQR2c3ZoBl6lM/exec";
   
   let currentUserEmail = "", allActiveUsers = [], allMasterTasks = [];
@@ -290,7 +324,7 @@
     try {
       const response = await fetch(API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Ensures no CORS preflight issues
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
         body: JSON.stringify(payload)
       });
       const result = await response.json();
@@ -338,8 +372,12 @@
   // LOGIN SYSTEM
   // =====================================
   function sendOtp() {
-    const email = document.getElementById('emailInput').value;
-    if(!email) return alert("Please enter your email");
+    const rawEmail = document.getElementById('emailInput').value;
+    if(!rawEmail) return alert("Please enter your email");
+    
+    // Convert to lowercase and trim spaces to prevent mismatch errors
+    const email = rawEmail.toLowerCase().trim();
+    
     toggleBtn('sendBtn', true, 'Sending OTP...');
     document.getElementById('loginMsg').innerText = "";
     
@@ -361,8 +399,13 @@
   }
 
   function verifyOtp() {
-    const email = document.getElementById('emailInput').value, otp = document.getElementById('otpInput').value;
+    const rawEmail = document.getElementById('emailInput').value;
+    const otp = document.getElementById('otpInput').value;
     if(!otp) return alert("Please enter the OTP");
+    
+    // Convert to lowercase and trim spaces to prevent mismatch errors
+    const email = rawEmail.toLowerCase().trim();
+    
     toggleBtn('verifyBtn', true, 'Verifying...');
     
     callApi('verifyOtp', { email: email, otp: otp })
@@ -393,9 +436,12 @@
     document.getElementById('userRoleDisplay').innerText = data.role;
     
     loadMyTasks();
-    if(data.role === 'Admin') { 
+    
+    // Robust check for Admin to avoid whitespace issues
+    if(data.role && data.role.trim().toLowerCase() === 'admin') { 
       document.getElementById('adminPanel').classList.remove('d-none'); 
       loadUsersData(); 
+      loadAdminUsers();
     }
   }
 
@@ -413,9 +459,11 @@
     
     loadMyTasks(); 
     
-    if (document.getElementById('userRoleDisplay').innerText === 'Admin') {
+    const roleText = document.getElementById('userRoleDisplay').innerText;
+    if (roleText && roleText.trim().toLowerCase() === 'admin') {
       loadMasterTasks();
       loadUsersData();
+      loadAdminUsers();
     }
     
     setTimeout(() => {
@@ -432,11 +480,13 @@
     document.getElementById('viewOldTask').classList.add('d-none');
     document.getElementById('viewBulk').classList.add('d-none');
     document.getElementById('viewReport').classList.add('d-none');
+    document.getElementById('viewUsers').classList.add('d-none');
 
     document.getElementById('tabNew').classList.remove('active');
     document.getElementById('tabOld').classList.remove('active');
     document.getElementById('tabBulk').classList.remove('active');
     document.getElementById('tabReport').classList.remove('active');
+    document.getElementById('tabUsers').classList.remove('active');
 
     if (tab === 'new') {
       document.getElementById('viewNewTask').classList.remove('d-none');
@@ -455,6 +505,11 @@
       document.getElementById('viewReport').classList.remove('d-none');
       document.getElementById('tabReport').classList.add('active');
       document.getElementById('reportDate').valueAsDate = new Date();
+    }
+    else if (tab === 'users') {
+      document.getElementById('viewUsers').classList.remove('d-none');
+      document.getElementById('tabUsers').classList.add('active');
+      loadAdminUsers();
     }
   }
 
@@ -624,7 +679,7 @@
   function loadMasterTasks() {
     callApi('getAllMasterTasks').then(t => {
       allMasterTasks = t;
-      filterManageTasks(); // Populates initial list directly with updated filtering
+      filterManageTasks(); 
     });
   }
   
@@ -773,6 +828,98 @@
           ${noProofTag}
         </div>`;
       });
+    });
+  }
+
+  // =====================================
+  // MANAGE USERS FUNCTIONS (ADMIN)
+  // =====================================
+  
+  function loadAdminUsers() {
+    const listDiv = document.getElementById('adminUsersList');
+    listDiv.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+    
+    callApi('getAllUsersAdmin').then(users => {
+      listDiv.innerHTML = "";
+      if(users.length === 0) return listDiv.innerHTML = `<div class="alert alert-warning small">No users found.</div>`;
+      
+      users.forEach(u => {
+        let statusBadge = u.status === 'Active' ? 'bg-success' : 'bg-danger';
+        let roleBadge = u.role.trim().toLowerCase() === 'admin' ? 'bg-primary' : 'bg-secondary';
+        let userJson = JSON.stringify(u).replace(/"/g, '&quot;'); 
+        
+        listDiv.innerHTML += `
+        <div class="mobile-card p-3 border mb-3 custom-shadow">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-bold" style="font-size: 15px; color: #2c3e50;">${u.name}</span>
+            <span class="badge ${statusBadge}">${u.status}</span>
+          </div>
+          <div class="small text-muted mb-2">
+            <strong>Email:</strong> ${u.email} <br>
+            <strong>Role:</strong> <span class="badge ${roleBadge} px-2">${u.role}</span> <br>
+            <strong>Dept:</strong> ${u.dept}
+          </div>
+          <div class="d-flex gap-2 mt-3">
+            <button onclick="editUser(${userJson})" class="btn btn-sm btn-outline-primary w-50 fw-bold">✏️ Edit</button>
+            <button onclick="deleteAdminUser('${u.email}')" class="btn btn-sm btn-outline-danger w-50 fw-bold">🗑️ Delete</button>
+          </div>
+        </div>`;
+      });
+    });
+  }
+
+  function editUser(userObj) {
+    document.getElementById('adminUserEmail').value = userObj.email;
+    document.getElementById('adminUserEmail').readOnly = true; 
+    document.getElementById('adminUserName').value = userObj.name;
+    // Set the role appropriately even if there are trailing spaces in the sheet
+    document.getElementById('adminUserRole').value = userObj.role.trim().toLowerCase() === 'admin' ? 'Admin' : 'User';
+    document.getElementById('adminUserStatus').value = userObj.status.trim() === 'Active' ? 'Active' : 'Inactive';
+    document.getElementById('adminUserDept').value = userObj.dept;
+    
+    document.getElementById('adminUserForm').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function resetUserForm() {
+    document.getElementById('adminUserEmail').value = '';
+    document.getElementById('adminUserEmail').readOnly = false;
+    document.getElementById('adminUserName').value = '';
+    document.getElementById('adminUserRole').value = 'User';
+    document.getElementById('adminUserStatus').value = 'Active';
+    document.getElementById('adminUserDept').value = '';
+  }
+
+  function saveAdminUser() {
+    const email = document.getElementById('adminUserEmail').value;
+    const name = document.getElementById('adminUserName').value;
+    const role = document.getElementById('adminUserRole').value;
+    const status = document.getElementById('adminUserStatus').value;
+    const dept = document.getElementById('adminUserDept').value;
+    
+    if(!email || !name || !dept) return alert("Please fill out Email, Name, and Department fields.");
+    
+    toggleBtn('saveUserBtn', true, 'Saving...');
+    
+    const userData = { email, name, role, status, dept };
+    
+    callApi('saveUser', { userData }).then(res => {
+      alert(res);
+      toggleBtn('saveUserBtn', false, 'Save User');
+      resetUserForm();
+      loadAdminUsers();
+      loadUsersData(); 
+    }).catch(err => {
+      toggleBtn('saveUserBtn', false, 'Save User');
+    });
+  }
+
+  function deleteAdminUser(email) {
+    if(!confirm(`Are you absolutely sure you want to delete ${email}?\nThis action cannot be undone.`)) return;
+    
+    callApi('deleteUser', { email }).then(res => {
+      alert(res);
+      loadAdminUsers();
+      loadUsersData(); 
     });
   }
 

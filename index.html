@@ -131,9 +131,7 @@
           <h5 class="fw-bold m-0 text-primary" id="userNameDisplay" style="font-size: 1.1rem;">User Name</h5>
         </div>
         <div>
-          <!-- This standard badge shows for regular users -->
           <span class="badge bg-primary text-white rounded-pill px-3 py-2 custom-shadow" id="userRoleDisplay">User</span>
-          <!-- This interactive dropdown shows ONLY for admins to switch views -->
           <select id="adminViewToggle" class="form-select form-select-sm fw-bold bg-primary text-white border-0 rounded-pill d-none" style="width: auto; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); outline: none;" onchange="toggleAdminView()">
             <option value="admin">⚙️ Admin View</option>
             <option value="user">📌 My Tasks View</option>
@@ -169,7 +167,20 @@
               </div>
               
               <label class="label-small">Settings</label>
-              <select name="frequency" class="form-select mb-2"><option value="Daily">Frequency: Daily</option><option value="Weekly">Frequency: Weekly</option><option value="15 Days">Frequency: 15 Days</option><option value="Monthly">Frequency: Monthly</option><option value="One-time">Frequency: One-time</option></select>
+              <select name="frequency" id="createFrequency" class="form-select mb-2" onchange="toggleCustomDay('create')">
+                <option value="Daily">Frequency: Daily</option>
+                <option value="Weekly">Frequency: Weekly</option>
+                <option value="15 Days">Frequency: 15 Days</option>
+                <option value="Monthly">Frequency: Monthly</option>
+                <option value="Quarterly">Frequency: Quarterly</option>
+                <option value="Half-Yearly">Frequency: Half-Yearly</option>
+                <option value="Every nTh">Frequency: Every nTh Day</option>
+                <option value="One-time">Frequency: One-time</option>
+              </select>
+              
+              <!-- Hidden input for Every nTh Custom Day -->
+              <input type="number" id="createCustomDay" class="form-control mb-2 d-none" placeholder="Enter specific day (1-31)" min="1" max="31">
+              
               <select name="proofRequired" class="form-select mb-3 text-danger fw-bold bg-light border-danger border-opacity-50"><option value="Yes">📷 Photo Proof: REQUIRED</option><option value="No">📷 Photo Proof: NOT REQUIRED</option></select>
               
               <label class="label-small">Timeline (Start & End)</label>
@@ -210,11 +221,20 @@
               <h6 class="text-warning fw-bold mb-3" style="color: #d39e00 !important;">📅 Extend Date & Frequency</h6>
               <div class="row g-2 mb-3">
                 <div class="col-6"><label class="label-small">New End Date</label><input type="date" id="newExtensionDate" class="form-control"></div>
-                <div class="col-6"><label class="label-small">New Frequency</label>
-                  <select id="extendFrequency" class="form-select">
+                <div class="col-6">
+                  <label class="label-small">New Frequency</label>
+                  <select id="extendFrequency" class="form-select" onchange="toggleCustomDay('extend')">
                     <option value="">-- Unchanged --</option>
-                    <option value="Daily">Daily</option><option value="Weekly">Weekly</option><option value="15 Days">15 Days</option><option value="Monthly">Monthly</option><option value="One-time">One-time</option>
+                    <option value="Daily">Daily</option>
+                    <option value="Weekly">Weekly</option>
+                    <option value="15 Days">15 Days</option>
+                    <option value="Monthly">Monthly</option>
+                    <option value="Quarterly">Quarterly</option>
+                    <option value="Half-Yearly">Half-Yearly</option>
+                    <option value="Every nTh">Every nTh Day</option>
+                    <option value="One-time">One-time</option>
                   </select>
+                  <input type="number" id="extendCustomDay" class="form-control mt-2 d-none" placeholder="Day (1-31)" min="1" max="31">
                 </div>
               </div>
               <button onclick="extendTask()" class="btn btn-warning text-dark fw-bold w-100" id="extendBtn">Update Task Validity</button>
@@ -376,9 +396,8 @@
   const API_URL = "https://script.google.com/macros/s/AKfycbw-Ixi9_0NzlSybp8Aopx2V688vYoJv4ek3dmnbZHmHUaEFXP1QdkwgQR2c3ZoBl6lM/exec";
   
   let currentUserEmail = "", currentUserRole = "", allActiveUsers = [], allMasterTasks = [];
-  let latestPerformanceData = []; // Store performance data for modal drill down
+  let latestPerformanceData = []; 
 
-  // Core API Wrapper
   async function callApi(action, payload = {}) {
     payload.action = action;
     try {
@@ -397,12 +416,11 @@
   }
 
   // =====================================
-  // INITIALIZATION & SESSION PERSISTENCE
+  // INITIALIZATION
   // =====================================
   document.addEventListener("DOMContentLoaded", () => {
     const savedEmail = localStorage.getItem('taskMasterUserEmail');
     
-    // Set default dates for performance to current month properly using Local time
     const dateObj = new Date();
     const yyyy = dateObj.getFullYear();
     const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -444,7 +462,6 @@
     const rawEmail = document.getElementById('emailInput').value;
     if(!rawEmail) return alert("Please enter your email");
     
-    // Convert to lowercase and trim spaces to prevent mismatch errors
     const email = rawEmail.toLowerCase().trim();
     
     toggleBtn('sendBtn', true, 'Sending OTP...');
@@ -472,7 +489,6 @@
     const otp = document.getElementById('otpInput').value;
     if(!otp) return alert("Please enter the OTP");
     
-    // Convert to lowercase and trim spaces to prevent mismatch errors
     const email = rawEmail.toLowerCase().trim();
     
     toggleBtn('verifyBtn', true, 'Verifying...');
@@ -508,19 +524,17 @@
     
     loadMyTasks();
     
-    // Robust check for Admin to setup the toggle view
     if(currentUserRole.toLowerCase() === 'admin') { 
       document.getElementById('userRoleDisplay').classList.add('d-none');
       document.getElementById('adminViewToggle').classList.remove('d-none');
-      document.getElementById('adminViewToggle').value = 'admin'; // Default to admin view
+      document.getElementById('adminViewToggle').value = 'admin'; 
       
-      toggleAdminView(); // Apply the view rules
+      toggleAdminView(); 
       
       loadUsersData(); 
       loadAdminUsers();
       loadMasterTasks(); 
     } else {
-      // Standard user view setup
       document.getElementById('userRoleDisplay').classList.remove('d-none');
       document.getElementById('adminViewToggle').classList.add('d-none');
       document.getElementById('adminPanel').classList.add('d-none');
@@ -553,8 +567,7 @@
     
     loadMyTasks(); 
     
-    const roleText = document.getElementById('userRoleDisplay').innerText;
-    if (roleText && roleText.trim().toLowerCase() === 'admin') {
+    if (currentUserRole.toLowerCase() === 'admin') {
       loadMasterTasks();
       loadUsersData();
       loadAdminUsers();
@@ -564,6 +577,31 @@
       btn.disabled = false;
       icon.innerHTML = "🔄";
     }, 1500);
+  }
+
+  // =====================================
+  // TOGGLE CUSTOM DAY VISIBILITY
+  // =====================================
+  function toggleCustomDay(ctx) {
+    if (ctx === 'create') {
+      const freq = document.getElementById('createFrequency').value;
+      const customDayInput = document.getElementById('createCustomDay');
+      if (freq === 'Every nTh') {
+        customDayInput.classList.remove('d-none');
+      } else {
+        customDayInput.classList.add('d-none');
+        customDayInput.value = '';
+      }
+    } else if (ctx === 'extend') {
+      const freq = document.getElementById('extendFrequency').value;
+      const customDayInput = document.getElementById('extendCustomDay');
+      if (freq === 'Every nTh') {
+        customDayInput.classList.remove('d-none');
+      } else {
+        customDayInput.classList.add('d-none');
+        customDayInput.value = '';
+      }
+    }
   }
 
   // =====================================
@@ -669,7 +707,7 @@
   }
 
   // =====================================
-  // TASKS RENDERING (COLLAPSIBLE UI)
+  // TASKS RENDERING
   // =====================================
   function loadMyTasks() {
     const listDiv = document.getElementById('taskList');
@@ -770,13 +808,32 @@
     const f = document.getElementById('taskForm');
     if(!f.taskName.value || !f.userEmail.value || !f.startDate.value || !f.endDate.value) return alert("Please fill all fields and dates");
     
+    let freqValue = f.frequency.value;
+    const customDayVal = document.getElementById('createCustomDay').value;
+    
+    if (freqValue === 'Every nTh') {
+      if (!customDayVal || customDayVal < 1 || customDayVal > 31) {
+        return alert("Please enter a valid day (1-31) for the 'Every nTh' frequency.");
+      }
+    }
+    
     toggleBtn('createBtn', true, 'Creating Tasks...');
-    const d = { taskName: f.taskName.value, instructions: f.instructions.value, userEmail: f.userSelect.value, frequency: f.frequency.value, startDate: f.startDate.value, endDate: f.endDate.value, proofRequired: f.proofRequired.value };
+    const d = { 
+      taskName: f.taskName.value, 
+      instructions: f.instructions.value, 
+      userEmail: f.userSelect.value, 
+      frequency: freqValue, 
+      customDay: customDayVal,
+      startDate: f.startDate.value, 
+      endDate: f.endDate.value, 
+      proofRequired: f.proofRequired.value 
+    };
     
     callApi('createAndGenerateTasks', { form: d }).then(res => { 
       alert(res); 
       toggleBtn('createBtn', false, '🚀 Create & Assign Tasks'); 
       f.reset(); 
+      toggleCustomDay('create'); // Reset visibility of the custom day field
     });
   }
 
@@ -791,23 +848,44 @@
     const tid = document.getElementById('masterTaskSelect').value;
     const l1 = document.getElementById('currentEndDateLabel');
     const l2 = document.getElementById('currentUserLabel');
-    const fq = document.getElementById('extendFrequency');
+    const fqSelect = document.getElementById('extendFrequency');
+    const extCustomDay = document.getElementById('extendCustomDay');
     
-    if(!tid) { l1.innerText=""; l2.innerText=""; fq.value=""; return; }
+    if(!tid) { l1.innerText=""; l2.innerText=""; fqSelect.value=""; toggleCustomDay('extend'); return; }
     
     const t = allMasterTasks.find(x => x.id == tid);
     if(t) {
        l1.innerText = "Current End: " + t.currentEnd;
        l2.innerText = "Assigned To: " + t.currentUser;
        document.getElementById('newExtensionDate').min = t.currentEnd;
-       if(t.freq) fq.value = t.freq;
+       
+       if(t.freq) {
+         if (t.freq.startsWith("Every nTh")) {
+           fqSelect.value = "Every nTh";
+           extCustomDay.value = t.freq.split("-")[1].trim();
+         } else {
+           fqSelect.value = t.freq;
+           extCustomDay.value = "";
+         }
+         toggleCustomDay('extend');
+       }
     }
   }
 
   function extendTask() {
     const tid = document.getElementById('masterTaskSelect').value, dt = document.getElementById('newExtensionDate').value;
-    const fq = document.getElementById('extendFrequency').value;
+    let fq = document.getElementById('extendFrequency').value;
+    
     if(!tid || !dt) return alert("Select a task and a new end date.");
+    
+    if (fq === 'Every nTh') {
+      const extCustomDay = document.getElementById('extendCustomDay').value;
+      if (!extCustomDay || extCustomDay < 1 || extCustomDay > 31) {
+        return alert("Please enter a valid day (1-31) for the 'Every nTh' frequency.");
+      }
+      fq = "Every nTh - " + extCustomDay;
+    }
+
     toggleBtn('extendBtn', true, 'Updating...');
     
     callApi('extendTaskDuration', { taskId: tid, newEndDateStr: dt, newFrequency: fq }).then(res => { 
@@ -892,7 +970,8 @@
   }
 
   function getReport() {
-    const u = document.getElementById('reportUser').value, d = document.getElementById('reportDate').value;
+    const u = document.getElementById('reportUser').value;
+    const d = document.getElementById('reportDate').value;
     const tillDate = document.getElementById('reportTillDate').checked;
     
     if(!u || !d) return alert("Select User & Date");
@@ -917,13 +996,16 @@
           : '';
 
         let details = r.details.split(' - ');
+        
+        let displayDate = r.taskDate;
+        if(tillDate) displayDate = "Upto " + displayDate;
 
         rDiv.innerHTML += `
         <div class="mobile-card p-3 border mb-3 custom-shadow">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <div>
               <div class="fw-bold" style="font-size: 15px; color: #2c3e50;">${details[0]}</div>
-              <div class="text-muted" style="font-size: 11px; margin-top: 2px;">📅 ${r.taskDate}</div>
+              <div class="text-muted" style="font-size: 11px; margin-top: 2px;">📅 ${displayDate}</div>
             </div>
             <span class="status-badge ${cls}">${r.status}</span>
           </div>
@@ -941,7 +1023,7 @@
   }
 
   // =====================================
-  // MANAGE USERS FUNCTIONS (ADMIN)
+  // MANAGE USERS & PERFORMANCE
   // =====================================
   function loadAdminUsers() {
     const listDiv = document.getElementById('adminUsersList');
@@ -1072,7 +1154,6 @@
         
         if(res.length === 0) return rDiv.innerHTML = `<div class="alert alert-info text-center fw-bold small">No tasks found for the selected dates.</div>`;
 
-        // Store globally for drill down
         latestPerformanceData = res;
 
         res.forEach((u, idx) => {

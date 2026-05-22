@@ -105,7 +105,7 @@
       <div class="mobile-card p-4 custom-shadow">
         <div class="mb-4">
           <label class="label-small">Email Address</label>
-          <input type="email" id="emailInput" class="form-control" placeholder="e.g. employee@company.com">
+          <input type="email" id="emailInput" class="form-control" placeholder="e.g. employee@company.com" oninput="this.value = this.value.toLowerCase()">
         </div>
         <button onclick="sendOtp()" class="btn btn-primary w-100 mb-3" id="sendBtn">Send Verification OTP</button>
         
@@ -177,8 +177,6 @@
                 <option value="Every nTh">Frequency: Every nTh Day</option>
                 <option value="One-time">Frequency: One-time</option>
               </select>
-              
-              <!-- Hidden input for Every nTh Custom Day -->
               <input type="number" id="createCustomDay" class="form-control mb-2 d-none" placeholder="Enter specific day (1-31)" min="1" max="31">
               
               <select name="proofRequired" class="form-select mb-3 text-danger fw-bold bg-light border-danger border-opacity-50"><option value="Yes">📷 Photo Proof: REQUIRED</option><option value="No">📷 Photo Proof: NOT REQUIRED</option></select>
@@ -311,7 +309,7 @@
             <div class="bg-light p-3 rounded border mb-4">
               <h6 class="text-secondary fw-bold mb-3" style="font-size: 13px; text-transform: uppercase;">👤 Add / Edit User</h6>
               <form id="adminUserForm">
-                <input type="email" id="adminUserEmail" class="form-control mb-2" placeholder="User Email" required>
+                <input type="email" id="adminUserEmail" class="form-control mb-2" placeholder="User Email" required oninput="this.value = this.value.toLowerCase()">
                 <input type="text" id="adminUserName" class="form-control mb-2" placeholder="Full Name" required>
                 <div class="row g-2 mb-2">
                   <div class="col-6">
@@ -638,7 +636,6 @@
     else if (tab === 'report') {
       document.getElementById('viewReport').classList.remove('d-none');
       document.getElementById('tabReport').classList.add('active');
-      document.getElementById('reportDate').valueAsDate = new Date();
     }
     else if (tab === 'users') {
       document.getElementById('viewUsers').classList.remove('d-none');
@@ -833,7 +830,7 @@
       alert(res); 
       toggleBtn('createBtn', false, '🚀 Create & Assign Tasks'); 
       f.reset(); 
-      toggleCustomDay('create'); // Reset visibility of the custom day field
+      toggleCustomDay('create'); 
     });
   }
 
@@ -1079,13 +1076,15 @@
   }
 
   function saveAdminUser() {
-    const email = document.getElementById('adminUserEmail').value;
+    const rawEmail = document.getElementById('adminUserEmail').value;
     const name = document.getElementById('adminUserName').value;
     const role = document.getElementById('adminUserRole').value;
     const status = document.getElementById('adminUserStatus').value;
     const dept = document.getElementById('adminUserDept').value;
     
-    if(!email || !name || !dept) return alert("Please fill out Email, Name, and Department fields.");
+    if(!rawEmail || !name || !dept) return alert("Please fill out Email, Name, and Department fields.");
+    
+    const email = rawEmail.toLowerCase().trim();
     
     toggleBtn('saveUserBtn', true, 'Saving...');
     

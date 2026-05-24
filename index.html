@@ -826,12 +826,17 @@
       proofRequired: f.proofRequired.value 
     };
     
-    callApi('createAndGenerateTasks', { form: d }).then(res => { 
-      alert(res); 
-      toggleBtn('createBtn', false, '🚀 Create & Assign Tasks'); 
-      f.reset(); 
-      toggleCustomDay('create'); 
-    });
+    callApi('createAndGenerateTasks', { form: d })
+      .then(res => { 
+        alert(res); 
+        toggleBtn('createBtn', false, '🚀 Create & Assign Tasks'); 
+        f.reset(); 
+        toggleCustomDay('create'); 
+      })
+      .catch(err => {
+        alert("Error occurred while generating tasks: " + err.message);
+        toggleBtn('createBtn', false, '🚀 Create & Assign Tasks'); 
+      });
   }
 
   function loadMasterTasks() {

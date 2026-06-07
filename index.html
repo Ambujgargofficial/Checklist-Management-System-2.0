@@ -350,6 +350,7 @@
                 <div class="col-6"><label class="label-small">End Date</label><input type="date" id="perfEndDate" class="form-control"></div>
               </div>
               <button onclick="getPerformanceReport()" class="btn btn-primary w-100 fw-bold" id="perfBtn">Calculate Performance</button>
+              <button onclick="exportPerformanceExcel()" class="btn btn-success w-100 fw-bold mt-2 d-none" id="exportPerfBtn">📥 Export to Excel</button>
             </div>
             
             <div id="performanceResults"></div>
@@ -1148,6 +1149,7 @@
     if (!start || !end) return alert("Start Date and End Date are required.");
 
     toggleBtn('perfBtn', true, 'Calculating...');
+    document.getElementById('exportPerfBtn').classList.add('d-none'); // Hide export button initially
     const rDiv = document.getElementById('performanceResults');
     rDiv.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
 
@@ -1159,6 +1161,7 @@
         if(res.length === 0) return rDiv.innerHTML = `<div class="alert alert-info text-center fw-bold small">No tasks found for the selected dates.</div>`;
 
         latestPerformanceData = res;
+        document.getElementById('exportPerfBtn').classList.remove('d-none'); // Show export button
 
         res.forEach((u, idx) => {
           let scoreColor = u.score >= 80 ? '#198754' : (u.score >= 50 ? '#ffc107' : '#dc3545');
@@ -1209,6 +1212,38 @@
         toggleBtn('perfBtn', false, 'Calculate Performance');
         rDiv.innerHTML = `<div class="alert alert-danger small">Error calculating performance.</div>`;
       });
+  }
+
+  function exportPerformanceExcel() {
+    if (!latestPerformanceData || latestPerformanceData.length === 0) {
+      alert("No data available to export.");
+      return;
+    }
+
+    // Prepare CSV Content
+    let csvContent = "Name,Department,Total Tasks,On Time,Late,Pending,Performance Score (%)\n";
+    
+    latestPerformanceData.forEach(user => {
+      // Escape commas in names or departments by wrapping in quotes
+      let safeName = `"${user.name}"`;
+      let safeDept = `"${user.dept}"`;
+      csvContent += `${safeName},${safeDept},${user.total},${user.onTime},${user.late},${user.pending},${user.score}%\n`;
+    });
+
+    // Create a Blob and trigger the download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const start = document.getElementById('perfStartDate').value;
+    const end = document.getElementById('perfEndDate').value;
+    const fileName = `Performance_Report_${start}_to_${end}.csv`;
+
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 
   function showDrillDown(category, userIndex) {

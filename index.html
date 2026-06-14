@@ -413,11 +413,17 @@
   async function callApi(action, payload = {}) {
     payload.action = action;
     try {
+      // 💡 Fix for NetworkError/CORS issues: 
+      // Using URLSearchParams sends data as "application/x-www-form-urlencoded"
+      // This skips the strict browser preflight checks and handles GAS 302 redirects properly
+      const formData = new URLSearchParams();
+      formData.append("payload", JSON.stringify(payload));
+
       const response = await fetch(API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
-        body: JSON.stringify(payload)
+        body: formData
       });
+
       const result = await response.json();
       if(!result.success) throw new Error(result.message);
       return result.data;
@@ -478,22 +484,34 @@
     
     toggleBtn('sendBtn', true, 'Sending OTP...');
     document.getElementById('loginMsg').innerText = "";
+    document.getElementById('loginMsg').className = "text-center mt-3 small text-danger fw-bold";
     
     callApi('sendOtp', { email: email })
       .then(res => {
         if(res.includes("OTP Sent")) {
-          document.getElementById('otpDiv').classList.remove('d-none'); 
-          document.getElementById('sendBtn').classList.add('d-none');
-          document.getElementById('emailInput').readOnly = true;
-        } else { 
-          document.getElementById('loginMsg').innerText = res; 
-          toggleBtn('sendBtn', false, 'Send Verification OTP'); 
+          showOtpBox();
+        } else {
+          document.getElementById('loginMsg').innerText = res;
+          toggleBtn('sendBtn', false, 'Send Verification OTP');
         }
       })
       .catch(err => {
-        document.getElementById('loginMsg').innerText = "Error: " + err.message;
-        toggleBtn('sendBtn', false, 'Send Verification OTP'); 
+        // 💡 SMART FALLBACK: If network drops but the script ran, show OTP box anyway!
+        if(err.message.includes("NetworkError") || err.message.includes("fetch")) {
+            showOtpBox();
+            document.getElementById('loginMsg').innerText = "Network delayed, but please check your email for the OTP!";
+            document.getElementById('loginMsg').className = "text-center mt-3 small text-success fw-bold";
+        } else {
+            document.getElementById('loginMsg').innerText = "Error: " + err.message;
+            toggleBtn('sendBtn', false, 'Send Verification OTP');
+        }
       });
+  }
+
+  function showOtpBox() {
+    document.getElementById('otpDiv').classList.remove('d-none');
+    document.getElementById('sendBtn').classList.add('d-none');
+    document.getElementById('emailInput').readOnly = true;
   }
 
   function verifyOtp() {

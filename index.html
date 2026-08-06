@@ -98,7 +98,7 @@
     <!-- AUTHENTICATING SCREEN -->
     <div id="loadingSection" class="d-none">
       <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
-      <p class="mt-3 text-muted fw-bold" id="loadingText">Connecting to server...</p>
+      <p class="mt-3 text-muted fw-bold">Connecting to server...</p>
     </div>
 
     <!-- LOGIN SECTION -->
@@ -413,6 +413,9 @@
   async function callApi(action, payload = {}) {
     payload.action = action;
     try {
+      // 💡 Fix for NetworkError/CORS issues: 
+      // Using URLSearchParams sends data as "application/x-www-form-urlencoded"
+      // This skips the strict browser preflight checks and handles GAS 302 redirects properly
       const formData = new URLSearchParams();
       formData.append("payload", JSON.stringify(payload));
 
@@ -421,24 +424,8 @@
         body: formData
       });
 
-      // 💡 Fix for "Unexpected token '<', "<!DOCTYPE "... is not valid JSON"
-      // Read response as text first, then try to parse as JSON.
-      // If it fails to parse, it means Google Apps Script returned an HTML page (like an error or auth prompt).
-      const rawText = await response.text();
-      let result;
-      try {
-        result = JSON.parse(rawText);
-      } catch (e) {
-        console.error("Failed to parse JSON response. Raw text:", rawText);
-        // It's an HTML response from Google, likely due to a server error, deployment issue, or auth problem.
-        if (rawText.toLowerCase().includes("<!doctype html>")) {
-             throw new Error("Server Error: The API returned an HTML page instead of data. Please try again or check the Google Apps Script deployment.");
-        } else {
-             throw new Error("Invalid response from server: " + rawText.substring(0, 50) + "...");
-        }
-      }
-
-      if(!result.success) throw new Error(result.message || "Unknown server error");
+      const result = await response.json();
+      if(!result.success) throw new Error(result.message);
       return result.data;
     } catch (error) {
       console.error("API Call Failed:", error);
@@ -477,7 +464,7 @@
         .catch(err => {
           document.getElementById('loadingSection').classList.add('d-none');
           document.getElementById('loginSection').classList.remove('d-none');
-          document.getElementById('loginMsg').innerText = "Session check failed: " + err.message;
+          document.getElementById('loginMsg').innerText = "Network error. Please login again.";
         });
         
     } else {
@@ -809,8 +796,6 @@
       
       htmlContent += '</div>';
       listDiv.innerHTML = htmlContent;
-    }).catch(err => {
-        listDiv.innerHTML = `<div class="alert alert-danger">Failed to load tasks: ${err.message}</div>`;
     });
   }
 
@@ -1256,7 +1241,7 @@
       })
       .catch(err => {
         toggleBtn('perfBtn', false, 'Calculate Performance');
-        rDiv.innerHTML = `<div class="alert alert-danger small">Error calculating performance: ${err.message}</div>`;
+        rDiv.innerHTML = `<div class="alert alert-danger small">Error calculating performance.</div>`;
       });
   }
 

@@ -98,7 +98,7 @@
     <!-- AUTHENTICATING SCREEN -->
     <div id="loadingSection" class="d-none">
       <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
-      <p class="mt-3 text-muted fw-bold">Connecting to server...</p>
+      <p class="mt-3 text-muted fw-bold" id="loadingText">Connecting to server...</p>
     </div>
 
     <!-- LOGIN SECTION -->
@@ -413,9 +413,6 @@
   async function callApi(action, payload = {}) {
     payload.action = action;
     try {
-      // 💡 Fix for NetworkError/CORS issues: 
-      // Using URLSearchParams sends data as "application/x-www-form-urlencoded"
-      // This skips the strict browser preflight checks and handles GAS 302 redirects properly
       const formData = new URLSearchParams();
       formData.append("payload", JSON.stringify(payload));
 
@@ -424,8 +421,9 @@
         body: formData
       });
 
+      // Reverted to your original method:
       const result = await response.json();
-      if(!result.success) throw new Error(result.message);
+      if(!result.success) throw new Error(result.message || "Unknown server error");
       return result.data;
     } catch (error) {
       console.error("API Call Failed:", error);
@@ -464,7 +462,7 @@
         .catch(err => {
           document.getElementById('loadingSection').classList.add('d-none');
           document.getElementById('loginSection').classList.remove('d-none');
-          document.getElementById('loginMsg').innerText = "Network error. Please login again.";
+          document.getElementById('loginMsg').innerText = "Session check failed: " + err.message;
         });
         
     } else {
@@ -496,8 +494,8 @@
         }
       })
       .catch(err => {
-        // 💡 SMART FALLBACK: If network drops but the script ran, show OTP box anyway!
-        if(err.message.includes("NetworkError") || err.message.includes("fetch")) {
+        // 💡 EXPANDED SMART FALLBACK: Catch Network drops OR the Google HTML/JSON Parsing error
+        if(err.message.includes("NetworkError") || err.message.includes("fetch") || err.message.includes("Unexpected token '<'") || err.message.includes("JSON") || err.message.includes("is not valid")) {
             showOtpBox();
             document.getElementById('loginMsg').innerText = "Network delayed, but please check your email for the OTP!";
             document.getElementById('loginMsg').className = "text-center mt-3 small text-success fw-bold";
@@ -796,6 +794,8 @@
       
       htmlContent += '</div>';
       listDiv.innerHTML = htmlContent;
+    }).catch(err => {
+        listDiv.innerHTML = `<div class="alert alert-danger">Failed to load tasks: ${err.message}</div>`;
     });
   }
 
@@ -818,6 +818,10 @@
           .then(res => {
             alert(res === "Success" ? "Task Completed Successfully! ✅" : res);
             if(res==="Success") loadMyTasks(); else toggleBtn('btn-'+id, false, '✅ Mark as Completed');
+          })
+          .catch(err => {
+            alert("Submission failed. Please try again. Error: " + err.message);
+            toggleBtn('btn-'+id, false, '✅ Mark as Completed');
           });
       };
       r.readAsDataURL(f.files[0]);
@@ -826,6 +830,10 @@
         .then(res => {
           alert(res === "Success" ? "Task Completed Successfully! ✅" : res);
           if(res==="Success") loadMyTasks(); else toggleBtn('btn-'+id, false, '✅ Mark as Completed');
+        })
+        .catch(err => {
+          alert("Submission failed. Please try again. Error: " + err.message);
+          toggleBtn('btn-'+id, false, '✅ Mark as Completed');
         });
     }
   }
@@ -928,6 +936,9 @@
       document.getElementById('newExtensionDate').value = '';
       document.getElementById('masterTaskSelect').value = '';
       updateDateLabel();
+    }).catch(err => {
+      alert("Error updating task: " + err.message);
+      toggleBtn('extendBtn', false, 'Update Task Validity');
     });
   }
 
@@ -944,6 +955,9 @@
       document.getElementById('transferUserSelect').value = '';
       document.getElementById('masterTaskSelect').value = '';
       updateDateLabel();
+    }).catch(err => {
+      alert("Error transferring task: " + err.message);
+      toggleBtn('transferBtn', false, 'Transfer Pending Tasks');
     });
   }
 
@@ -959,6 +973,9 @@
       loadMasterTasks(); 
       document.getElementById('masterTaskSelect').value = '';
       updateDateLabel();
+    }).catch(err => {
+      alert("Error stopping task: " + err.message);
+      toggleBtn('stopBtn', false, 'Stop & Delete Pending');
     });
   }
 
@@ -1000,6 +1017,9 @@
       document.getElementById('bulkDate').value = '';
       document.getElementById('bulkUser').value = '';
       document.getElementById('bulkTaskContainer').innerHTML = '<div class="text-center text-muted small py-4">Please select a user first</div>';
+    }).catch(err => {
+      alert("Error processing bulk update: " + err.message);
+      toggleBtn('bulkBtn', false, 'Extend All Selected');
     });
   }
 
@@ -1053,6 +1073,10 @@
           ${noProofTag}
         </div>`;
       });
+    }).catch(err => {
+      alert("Error fetching report: " + err.message);
+      toggleBtn('reportBtn', false, 'Generate Report');
+      rDiv.innerHTML = `<div class="alert alert-danger small fw-bold text-center py-4">Error loading report. Please try again.</div>`;
     });
   }
 
@@ -1165,6 +1189,9 @@
       .then(res => {
         alert(res);
         getReport(); 
+      }).catch(err => {
+        alert("Error rejecting task: " + err.message);
+        toggleBtn('rej-'+rowId, false, '❌ Mark as Not Done Correctly');
       });
   }
 
@@ -1241,7 +1268,7 @@
       })
       .catch(err => {
         toggleBtn('perfBtn', false, 'Calculate Performance');
-        rDiv.innerHTML = `<div class="alert alert-danger small">Error calculating performance.</div>`;
+        rDiv.innerHTML = `<div class="alert alert-danger small">Error calculating performance: ${err.message}</div>`;
       });
   }
 

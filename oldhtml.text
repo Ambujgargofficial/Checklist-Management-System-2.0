@@ -7,7 +7,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   
-  <!-- jsPDF and AutoTable for PDF export -->
+  <!-- Add jsPDF and AutoTable for beautiful PDF export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
   
@@ -68,6 +68,7 @@
     
     #loadingSection { height: 70vh; display: flex; flex-direction: column; justify-content: center; align-items: center; }
 
+    /* Performance Report specific styles */
     .stat-box { background: #f8f9fa; border-radius: 10px; padding: 10px; text-align: center; border: 1px solid #dee2e6; cursor: pointer; transition: all 0.2s;}
     .stat-box:hover { background: #e9ecef; }
     .stat-val { font-size: 1.5rem; font-weight: bold; line-height: 1; margin-bottom: 5px;}
@@ -183,15 +184,12 @@
               </select>
               <input type="number" id="createCustomDay" class="form-control mb-2 d-none" placeholder="Enter specific day (1-31)" min="1" max="31">
               
-              <select name="proofRequired" class="form-select mb-3 text-danger fw-bold bg-light border-danger border-opacity-50">
-                <option value="Yes">📷 Photo Proof: REQUIRED</option>
-                <option value="No">📷 Photo Proof: NOT REQUIRED</option>
-              </select>
+              <select name="proofRequired" class="form-select mb-3 text-danger fw-bold bg-light border-danger border-opacity-50"><option value="Yes">📷 Photo Proof: REQUIRED</option><option value="No">📷 Photo Proof: NOT REQUIRED</option></select>
               
               <label class="label-small">Timeline (Start & End)</label>
               <div class="row g-2 mb-4">
-                <div class="col-6"><input type="date" name="startDate" class="form-control text-muted" required></div>
-                <div class="col-6"><input type="date" name="endDate" class="form-control text-muted" required></div>
+                <div class="col-6"><input type="date" name="startDate" class="form-control text-muted"></div>
+                <div class="col-6"><input type="date" name="endDate" class="form-control text-muted"></div>
               </div>
               
               <button type="button" onclick="submitTask()" class="btn btn-primary w-100 fw-bold" id="createBtn">🚀 Create & Assign Tasks</button>
@@ -299,7 +297,7 @@
                     <label class="label-small mb-0">Filter Date</label>
                     <div class="form-check p-0 m-0">
                       <input type="checkbox" class="form-check-input" id="reportTillDate" style="float:none; margin-right: 2px; margin-top: 1px; width: 0.9em; height: 0.9em;">
-                      <label class="form-check-label" for="reportTillDate" style="font-size: 10px; font-weight: bold; color: #dc3545; vertical-align: middle;">Till Date (&lt;=)</label>
+                      <label class="form-check-label" for="reportTillDate" style="font-size: 10px; font-weight: bold; color: #dc3545; vertical-align: middle;">Till Date (<=)</label>
                     </div>
                   </div>
                   <input type="date" id="reportDate" class="form-control">
@@ -395,7 +393,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body bg-light p-2" id="drillDownBody">
-        <!-- Injected via JS -->
+        <!-- Content gets injected here via JS -->
       </div>
     </div>
   </div>
@@ -423,22 +421,9 @@
         body: formData
       });
 
-      const rawText = await response.text();
-
-      // Catch Google HTML error page redirects
-      if (rawText.trim().startsWith("<") || rawText.trim().startsWith("<!DOCTYPE")) {
-        console.error("Apps Script returned HTML instead of JSON:", rawText);
-        throw new Error("Server returned an HTML error. The backend may have timed out or encountered an unhandled exception.");
-      }
-
-      let result;
-      try {
-        result = JSON.parse(rawText);
-      } catch (e) {
-        throw new Error("Invalid response format: " + rawText.substring(0, 150));
-      }
-
-      if (!result.success) throw new Error(result.message || "Unknown server error");
+      // Reverted to your original method:
+      const result = await response.json();
+      if(!result.success) throw new Error(result.message || "Unknown server error");
       return result.data;
     } catch (error) {
       console.error("API Call Failed:", error);
@@ -485,6 +470,7 @@
     }
   });
 
+
   // =====================================
   // LOGIN SYSTEM
   // =====================================
@@ -508,7 +494,8 @@
         }
       })
       .catch(err => {
-        if(err.message.includes("NetworkError") || err.message.includes("fetch") || err.message.includes("Unexpected token '<'") || err.message.includes("HTML")) {
+        // 💡 EXPANDED SMART FALLBACK: Catch Network drops OR the Google HTML/JSON Parsing error
+        if(err.message.includes("NetworkError") || err.message.includes("fetch") || err.message.includes("Unexpected token '<'") || err.message.includes("JSON") || err.message.includes("is not valid")) {
             showOtpBox();
             document.getElementById('loginMsg').innerText = "Network delayed, but please check your email for the OTP!";
             document.getElementById('loginMsg').className = "text-center mt-3 small text-success fw-bold";
@@ -531,6 +518,7 @@
     if(!otp) return alert("Please enter the OTP");
     
     const email = rawEmail.toLowerCase().trim();
+    
     toggleBtn('verifyBtn', true, 'Verifying...');
     
     callApi('verifyOtp', { email: email, otp: otp })
@@ -568,7 +556,9 @@
       document.getElementById('userRoleDisplay').classList.add('d-none');
       document.getElementById('adminViewToggle').classList.remove('d-none');
       document.getElementById('adminViewToggle').value = 'admin'; 
+      
       toggleAdminView(); 
+      
       loadUsersData(); 
       loadAdminUsers();
       loadMasterTasks(); 
@@ -618,7 +608,7 @@
   }
 
   // =====================================
-  // CUSTOM DAY VISIBILITY TOGGLE
+  // TOGGLE CUSTOM DAY VISIBILITY
   // =====================================
   function toggleCustomDay(ctx) {
     if (ctx === 'create') {
@@ -646,31 +636,43 @@
   // TABS LOGIC
   // =====================================
   function switchTab(tab) {
-    ['viewNewTask', 'viewOldTask', 'viewBulk', 'viewReport', 'viewUsers', 'viewPerformance'].forEach(id => {
-      document.getElementById(id).classList.add('d-none');
-    });
-    ['tabNew', 'tabOld', 'tabBulk', 'tabReport', 'tabUsers', 'tabPerformance'].forEach(id => {
-      document.getElementById(id).classList.remove('active');
-    });
+    document.getElementById('viewNewTask').classList.add('d-none');
+    document.getElementById('viewOldTask').classList.add('d-none');
+    document.getElementById('viewBulk').classList.add('d-none');
+    document.getElementById('viewReport').classList.add('d-none');
+    document.getElementById('viewUsers').classList.add('d-none');
+    document.getElementById('viewPerformance').classList.add('d-none');
+
+    document.getElementById('tabNew').classList.remove('active');
+    document.getElementById('tabOld').classList.remove('active');
+    document.getElementById('tabBulk').classList.remove('active');
+    document.getElementById('tabReport').classList.remove('active');
+    document.getElementById('tabUsers').classList.remove('active');
+    document.getElementById('tabPerformance').classList.remove('active');
 
     if (tab === 'new') {
       document.getElementById('viewNewTask').classList.remove('d-none');
       document.getElementById('tabNew').classList.add('active');
-    } else if (tab === 'old') {
+    } 
+    else if (tab === 'old') {
       document.getElementById('viewOldTask').classList.remove('d-none');
       document.getElementById('tabOld').classList.add('active');
       loadMasterTasks();
-    } else if (tab === 'bulk') {
+    } 
+    else if (tab === 'bulk') {
       document.getElementById('viewBulk').classList.remove('d-none');
       document.getElementById('tabBulk').classList.add('active');
-    } else if (tab === 'report') {
+    } 
+    else if (tab === 'report') {
       document.getElementById('viewReport').classList.remove('d-none');
       document.getElementById('tabReport').classList.add('active');
-    } else if (tab === 'users') {
+    }
+    else if (tab === 'users') {
       document.getElementById('viewUsers').classList.remove('d-none');
       document.getElementById('tabUsers').classList.add('active');
       loadAdminUsers();
-    } else if (tab === 'performance') {
+    }
+    else if (tab === 'performance') {
       document.getElementById('viewPerformance').classList.remove('d-none');
       document.getElementById('tabPerformance').classList.add('active');
     }
@@ -685,10 +687,7 @@
       const depts = [...new Set(users.map(u => u.dept))];
       const populate = (id) => {
         const d = document.getElementById(id);
-        if(d) { 
-          d.innerHTML = '<option value="All">All Depts</option>'; 
-          depts.forEach(dp => d.innerHTML += `<option value="${dp}">${dp}</option>`); 
-        }
+        if(d) { d.innerHTML = '<option value="All">All Depts</option>'; depts.forEach(dp => d.innerHTML += `<option value="${dp}">${dp}</option>`); }
       };
       populate('deptFilter'); populate('reportDept'); populate('transferDeptFilter'); populate('bulkDept'); populate('manageDeptFilter'); populate('perfDept');
       filterUsersByDept('create'); filterUsersByDept('report'); filterUsersByDept('transfer'); filterUsersByDept('bulk'); filterUsersByDept('manage'); filterUsersByDept('perf');
@@ -717,14 +716,17 @@
     const selectBox = document.getElementById('masterTaskSelect'); 
     
     selectBox.innerHTML = '<option value="">-- Choose Task --</option>';
+    
     let filteredTasks = allMasterTasks;
     
     if (userEmail !== "All" && userEmail !== "") {
-      const userObj = allActiveUsers.find(u => u.email === userEmail);
-      if(userObj) filteredTasks = filteredTasks.filter(t => t.currentUser === userObj.name);
+       const userObj = allActiveUsers.find(u => u.email === userEmail);
+       if(userObj) {
+           filteredTasks = filteredTasks.filter(t => t.currentUser === userObj.name);
+       }
     } else if (dept !== "All") {
-      const deptUsers = allActiveUsers.filter(u => u.dept === dept).map(u => u.name);
-      filteredTasks = filteredTasks.filter(t => deptUsers.includes(t.currentUser));
+       const deptUsers = allActiveUsers.filter(u => u.dept === dept).map(u => u.name);
+       filteredTasks = filteredTasks.filter(t => deptUsers.includes(t.currentUser));
     }
     
     filteredTasks.forEach(x => selectBox.innerHTML += `<option value="${x.id}">${x.name} (Ends: ${x.currentEnd})</option>`);
@@ -743,7 +745,8 @@
       if(tasks.length === 0) return listDiv.innerHTML = `<div class="text-center text-muted py-5 bg-white rounded-4 border"><h1 style="font-size: 40px;">🎉</h1><h5 class="fw-bold mt-2">All Caught Up!</h5><p class="small">You have no pending tasks for today.</p></div>`;
       
       let htmlContent = '<div class="accordion" id="tasksAccordion">';
-      tasks.forEach((t) => {
+      
+      tasks.forEach((t, index) => {
         let parts = t.details.split(' - ');
         let taskName = parts[0] || "Task";
         let taskDesc = parts.slice(1).join(' - ') || "No additional instructions provided.";
@@ -751,10 +754,14 @@
         let isPhotoReq = (t.proofReq === "No") ? "d-none" : "";
         let photoLabel = (t.proofReq === "No") ? "" : '<label class="label-small text-danger mt-3">📷 Photo Proof (Required)</label>';
 
+        let expandedClass = ""; 
+        let buttonCollapsed = "collapsed"; 
+        let ariaExpanded = "false"; 
+
         htmlContent += `
         <div class="task-card accordion-item">
           <h2 class="accordion-header" id="heading-${t.rowId}">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${t.rowId}" aria-expanded="false" aria-controls="collapse-${t.rowId}">
+            <button class="accordion-button ${buttonCollapsed}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${t.rowId}" aria-expanded="${ariaExpanded}" aria-controls="collapse-${t.rowId}">
               <div class="d-flex justify-content-between align-items-center w-100 pe-3">
                 <div>
                   <div class="task-title mb-0">${taskName}</div>
@@ -764,7 +771,7 @@
               </div>
             </button>
           </h2>
-          <div id="collapse-${t.rowId}" class="accordion-collapse collapse" aria-labelledby="heading-${t.rowId}" data-bs-parent="#tasksAccordion">
+          <div id="collapse-${t.rowId}" class="accordion-collapse collapse ${expandedClass}" aria-labelledby="heading-${t.rowId}" data-bs-parent="#tasksAccordion">
             <div class="accordion-body">
               <div class="task-desc">
                 <span class="fw-bold d-block mb-1" style="font-size: 11px; text-transform: uppercase; color: #adb5bd;">Instructions</span>
@@ -784,10 +791,11 @@
           </div>
         </div>`;
       });
+      
       htmlContent += '</div>';
       listDiv.innerHTML = htmlContent;
     }).catch(err => {
-      listDiv.innerHTML = `<div class="alert alert-danger">Failed to load tasks: ${err.message}</div>`;
+        listDiv.innerHTML = `<div class="alert alert-danger">Failed to load tasks: ${err.message}</div>`;
     });
   }
 
@@ -801,7 +809,7 @@
       if(f.files.length === 0) return alert("Admin requires a photo proof for this task. Please attach an image.");
     }
 
-    toggleBtn('btn-' + id, true, 'Submitting...');
+    toggleBtn('btn-'+id, true, 'Submitting...');
     
     if (f.files.length > 0) {
       const r = new FileReader();
@@ -809,12 +817,11 @@
         callApi('uploadProofAndMarkDone', { base64Data: e.target.result, rowId: id, remarks: rem })
           .then(res => {
             alert(res === "Success" ? "Task Completed Successfully! ✅" : res);
-            if(res === "Success") loadMyTasks(); 
-            else toggleBtn('btn-' + id, false, '✅ Mark as Completed');
+            if(res==="Success") loadMyTasks(); else toggleBtn('btn-'+id, false, '✅ Mark as Completed');
           })
           .catch(err => {
-            alert("Submission failed: " + err.message);
-            toggleBtn('btn-' + id, false, '✅ Mark as Completed');
+            alert("Submission failed. Please try again. Error: " + err.message);
+            toggleBtn('btn-'+id, false, '✅ Mark as Completed');
           });
       };
       r.readAsDataURL(f.files[0]);
@@ -822,12 +829,11 @@
       callApi('uploadProofAndMarkDone', { base64Data: "", rowId: id, remarks: rem })
         .then(res => {
           alert(res === "Success" ? "Task Completed Successfully! ✅" : res);
-          if(res === "Success") loadMyTasks(); 
-          else toggleBtn('btn-' + id, false, '✅ Mark as Completed');
+          if(res==="Success") loadMyTasks(); else toggleBtn('btn-'+id, false, '✅ Mark as Completed');
         })
         .catch(err => {
-          alert("Submission failed: " + err.message);
-          toggleBtn('btn-' + id, false, '✅ Mark as Completed');
+          alert("Submission failed. Please try again. Error: " + err.message);
+          toggleBtn('btn-'+id, false, '✅ Mark as Completed');
         });
     }
   }
@@ -837,7 +843,7 @@
   // =====================================
   function submitTask() {
     const f = document.getElementById('taskForm');
-    if(!f.taskName.value || !f.userEmail.value || !f.startDate.value || !f.endDate.value) return alert("Please fill all required fields and dates.");
+    if(!f.taskName.value || !f.userEmail.value || !f.startDate.value || !f.endDate.value) return alert("Please fill all fields and dates");
     
     let freqValue = f.frequency.value;
     const customDayVal = document.getElementById('createCustomDay').value;
@@ -854,7 +860,7 @@
       instructions: f.instructions.value, 
       userEmail: f.userSelect.value, 
       frequency: freqValue, 
-      customDay: customDayVal, 
+      customDay: customDayVal,
       startDate: f.startDate.value, 
       endDate: f.endDate.value, 
       proofRequired: f.proofRequired.value 
@@ -867,8 +873,8 @@
         f.reset(); 
         toggleCustomDay('create'); 
       })
-      .catch(err => { 
-        alert("Error occurred while generating tasks: " + err.message); 
+      .catch(err => {
+        alert("Error occurred while generating tasks: " + err.message);
         toggleBtn('createBtn', false, '🚀 Create & Assign Tasks'); 
       });
   }
@@ -887,30 +893,29 @@
     const fqSelect = document.getElementById('extendFrequency');
     const extCustomDay = document.getElementById('extendCustomDay');
     
-    if(!tid) { l1.innerText = ""; l2.innerText = ""; fqSelect.value = ""; toggleCustomDay('extend'); return; }
+    if(!tid) { l1.innerText=""; l2.innerText=""; fqSelect.value=""; toggleCustomDay('extend'); return; }
     
     const t = allMasterTasks.find(x => x.id == tid);
     if(t) {
-      l1.innerText = "Current End: " + t.currentEnd;
-      l2.innerText = "Assigned To: " + t.currentUser;
-      document.getElementById('newExtensionDate').min = t.currentEnd;
-      
-      if(t.freq) {
-        if (t.freq.startsWith("Every nTh")) {
-          fqSelect.value = "Every nTh";
-          extCustomDay.value = t.freq.split("-")[1].trim();
-        } else {
-          fqSelect.value = t.freq;
-          extCustomDay.value = "";
-        }
-        toggleCustomDay('extend');
-      }
+       l1.innerText = "Current End: " + t.currentEnd;
+       l2.innerText = "Assigned To: " + t.currentUser;
+       document.getElementById('newExtensionDate').min = t.currentEnd;
+       
+       if(t.freq) {
+         if (t.freq.startsWith("Every nTh")) {
+           fqSelect.value = "Every nTh";
+           extCustomDay.value = t.freq.split("-")[1].trim();
+         } else {
+           fqSelect.value = t.freq;
+           extCustomDay.value = "";
+         }
+         toggleCustomDay('extend');
+       }
     }
   }
 
   function extendTask() {
-    const tid = document.getElementById('masterTaskSelect').value;
-    const dt = document.getElementById('newExtensionDate').value;
+    const tid = document.getElementById('masterTaskSelect').value, dt = document.getElementById('newExtensionDate').value;
     let fq = document.getElementById('extendFrequency').value;
     
     if(!tid || !dt) return alert("Select a task and a new end date.");
@@ -927,34 +932,32 @@
     
     callApi('extendTaskDuration', { taskId: tid, newEndDateStr: dt, newFrequency: fq }).then(res => { 
       alert(res); 
-      toggleBtn('extendBtn', false, 'Update Task Validity'); 
-      document.getElementById('newExtensionDate').value = ''; 
-      document.getElementById('masterTaskSelect').value = ''; 
-      updateDateLabel(); 
-    }).catch(err => { 
-      alert("Error updating task: " + err.message); 
-      toggleBtn('extendBtn', false, 'Update Task Validity'); 
+      toggleBtn('extendBtn', false, 'Update Task Validity');
+      document.getElementById('newExtensionDate').value = '';
+      document.getElementById('masterTaskSelect').value = '';
+      updateDateLabel();
+    }).catch(err => {
+      alert("Error updating task: " + err.message);
+      toggleBtn('extendBtn', false, 'Update Task Validity');
     });
   }
 
   function transferTask() {
-    const tid = document.getElementById('masterTaskSelect').value;
-    const u = document.getElementById('transferUserSelect').value;
+    const tid = document.getElementById('masterTaskSelect').value, u = document.getElementById('transferUserSelect').value;
     if(!tid || !u) return alert("Select task and new user");
     if(!confirm("Are you sure you want to change the owner of all pending/future instances of this task?")) return;
-    
     toggleBtn('transferBtn', true, 'Transferring...');
     
     callApi('reassignFutureTasks', { taskId: tid, newUserEmail: u }).then(res => { 
       alert(res); 
       toggleBtn('transferBtn', false, 'Transfer Pending Tasks'); 
-      loadMasterTasks(); 
-      document.getElementById('transferUserSelect').value = ''; 
-      document.getElementById('masterTaskSelect').value = ''; 
-      updateDateLabel(); 
-    }).catch(err => { 
-      alert("Error transferring task: " + err.message); 
-      toggleBtn('transferBtn', false, 'Transfer Pending Tasks'); 
+      loadMasterTasks();
+      document.getElementById('transferUserSelect').value = '';
+      document.getElementById('masterTaskSelect').value = '';
+      updateDateLabel();
+    }).catch(err => {
+      alert("Error transferring task: " + err.message);
+      toggleBtn('transferBtn', false, 'Transfer Pending Tasks');
     });
   }
 
@@ -962,18 +965,17 @@
     const tid = document.getElementById('masterTaskSelect').value;
     if(!tid) return alert("Select a task first");
     if(!confirm("Are you entirely sure? This will delete all pending tasks associated with this Master Task.")) return;
-    
     toggleBtn('stopBtn', true, 'Stopping...');
     
     callApi('forceStopTask', { taskId: tid }).then(res => { 
       alert(res); 
       toggleBtn('stopBtn', false, 'Stop & Delete Pending'); 
       loadMasterTasks(); 
-      document.getElementById('masterTaskSelect').value = ''; 
-      updateDateLabel(); 
-    }).catch(err => { 
-      alert("Error stopping task: " + err.message); 
-      toggleBtn('stopBtn', false, 'Stop & Delete Pending'); 
+      document.getElementById('masterTaskSelect').value = '';
+      updateDateLabel();
+    }).catch(err => {
+      alert("Error stopping task: " + err.message);
+      toggleBtn('stopBtn', false, 'Stop & Delete Pending');
     });
   }
 
@@ -987,8 +989,7 @@
     
     c.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
     callApi('getTasksByUser', { email: u }).then(t => {
-      c.innerHTML = ""; 
-      if(t.length === 0) return c.innerHTML = '<div class="text-center text-danger small py-3 fw-bold">No master tasks assigned to this user.</div>';
+      c.innerHTML = ""; if(t.length === 0) return c.innerHTML = '<div class="text-center text-danger small py-3 fw-bold">No master tasks assigned to this user.</div>';
       t.forEach(x => c.innerHTML += `
         <div class="form-check border-bottom py-2">
           <input class="form-check-input bulk-check mt-2" type="checkbox" value="${x.id}" id="chk-${x.id}">
@@ -1003,8 +1004,7 @@
   function selectAllBulk() { document.querySelectorAll('.bulk-check').forEach(c => c.checked = true); }
 
   function submitBulkExtend() {
-    const dt = document.getElementById('bulkDate').value;
-    const chks = document.querySelectorAll('.bulk-check:checked');
+    const dt = document.getElementById('bulkDate').value, chks = document.querySelectorAll('.bulk-check:checked');
     if(chks.length === 0 || !dt) return alert("Select at least one task and a new end date.");
     if(!confirm(`Extend ${chks.length} tasks to ${dt}?`)) return;
     
@@ -1014,12 +1014,12 @@
     callApi('processBulkExtension', { taskIds: ids, newDateStr: dt }).then(res => { 
       alert(res); 
       toggleBtn('bulkBtn', false, 'Extend All Selected'); 
-      document.getElementById('bulkDate').value = ''; 
-      document.getElementById('bulkUser').value = ''; 
-      document.getElementById('bulkTaskContainer').innerHTML = '<div class="text-center text-muted small py-4">Please select a user first</div>'; 
-    }).catch(err => { 
-      alert("Error processing bulk update: " + err.message); 
-      toggleBtn('bulkBtn', false, 'Extend All Selected'); 
+      document.getElementById('bulkDate').value = '';
+      document.getElementById('bulkUser').value = '';
+      document.getElementById('bulkTaskContainer').innerHTML = '<div class="text-center text-muted small py-4">Please select a user first</div>';
+    }).catch(err => {
+      alert("Error processing bulk update: " + err.message);
+      toggleBtn('bulkBtn', false, 'Extend All Selected');
     });
   }
 
@@ -1028,22 +1028,21 @@
     const d = document.getElementById('reportDate').value;
     const tillDate = document.getElementById('reportTillDate').checked;
     
-    if(!u || !d) return alert("Please select both User and Date.");
+    if(!u || !d) return alert("Select User & Date");
     toggleBtn('reportBtn', true, 'Fetching Report...');
     const rDiv = document.getElementById('reportResults'); 
     rDiv.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
     
     callApi('getAdminReport', { filters: { userEmail: u, date: d, status: document.getElementById('reportStatus').value, tillDate: tillDate } }).then(res => {
-      toggleBtn('reportBtn', false, 'Generate Report'); 
-      rDiv.innerHTML = "";
+      toggleBtn('reportBtn', false, 'Generate Report'); rDiv.innerHTML = "";
       if(res.length === 0) return rDiv.innerHTML = `<div class="alert alert-warning small fw-bold text-center py-4">No task records found for this criteria.</div>`;
       
       res.forEach(r => {
         let cls = r.status === 'Done' ? 'badge-done' : 'badge-pending';
         let btn = r.status === 'Done' && r.proof && r.proof !== 'No Proof Required' 
-          ? `<a href="${r.proof}" target="_blank" class="btn btn-sm btn-outline-primary w-100 mt-3 fw-bold">🖼️️ View Uploaded Proof</a>` 
+          ? `<a href="${r.proof}" target="_blank" class="btn btn-sm btn-outline-primary w-100 mt-3 fw-bold">🖼️ View Uploaded Proof</a>` 
           : '';
-        let noProofTag = r.status === 'Done' && r.proof === 'No Proof Required' 
+        let noProofTag = r.status === 'Done' && r.proof === 'No Proof Required'
           ? `<div class="text-center mt-2 small text-muted fst-italic">No photo proof was required</div>` : '';
           
         let rejectBtn = r.status === 'Done' 
@@ -1051,6 +1050,7 @@
           : '';
 
         let details = r.details.split(' - ');
+        
         let displayDate = r.taskDate;
         if(tillDate) displayDate = "Upto " + displayDate;
 
@@ -1123,6 +1123,7 @@
     document.getElementById('adminUserRole').value = userObj.role.trim().toLowerCase() === 'admin' ? 'Admin' : 'User';
     document.getElementById('adminUserStatus').value = userObj.status.trim() === 'Active' ? 'Active' : 'Inactive';
     document.getElementById('adminUserDept').value = userObj.dept;
+    
     document.getElementById('adminUserForm').scrollIntoView({ behavior: 'smooth' });
   }
 
@@ -1145,6 +1146,7 @@
     if(!rawEmail || !name || !dept) return alert("Please fill out Email, Name, and Department fields.");
     
     const email = rawEmail.toLowerCase().trim();
+    
     toggleBtn('saveUserBtn', true, 'Saving...');
     
     const userData = { email, name, role, status, dept };
@@ -1156,7 +1158,6 @@
       loadAdminUsers();
       loadUsersData(); 
     }).catch(err => {
-      alert("Error saving user: " + err.message);
       toggleBtn('saveUserBtn', false, 'Save User');
     });
   }
@@ -1168,8 +1169,6 @@
       alert(res);
       loadAdminUsers();
       loadUsersData(); 
-    }).catch(err => {
-      alert("Error deleting user: " + err.message);
     });
   }
 
@@ -1178,13 +1177,13 @@
     if (rejectRemark === null) return; 
     
     if (rejectRemark.trim() === "") {
-      alert("Rejection reason is mandatory!");
-      return;
+       alert("Rejection reason is mandatory!");
+       return;
     }
 
     if(!confirm("Are you sure you want to reject this task? It will be marked as Pending and an email will be sent.")) return;
     
-    toggleBtn('rej-' + rowId, true, 'Rejecting...');
+    toggleBtn('rej-'+rowId, true, 'Rejecting...');
     
     callApi('rejectUserTask', { rowId: rowId, email: email, details: details, adminEmail: currentUserEmail, rejectRemark: rejectRemark })
       .then(res => {
@@ -1192,7 +1191,7 @@
         getReport(); 
       }).catch(err => {
         alert("Error rejecting task: " + err.message);
-        toggleBtn('rej-' + rowId, false, '❌ Mark as Not Done Correctly');
+        toggleBtn('rej-'+rowId, false, '❌ Mark as Not Done Correctly');
       });
   }
 
@@ -1208,7 +1207,7 @@
     if (!start || !end) return alert("Start Date and End Date are required.");
 
     toggleBtn('perfBtn', true, 'Calculating...');
-    document.getElementById('exportBtnGroup').classList.add('d-none');
+    document.getElementById('exportBtnGroup').classList.add('d-none'); // Hide export buttons initially
     const rDiv = document.getElementById('performanceResults');
     rDiv.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
 
@@ -1220,7 +1219,7 @@
         if(res.length === 0) return rDiv.innerHTML = `<div class="alert alert-info text-center fw-bold small">No tasks found for the selected dates.</div>`;
 
         latestPerformanceData = res;
-        document.getElementById('exportBtnGroup').classList.remove('d-none');
+        document.getElementById('exportBtnGroup').classList.remove('d-none'); // Show export buttons
 
         res.forEach((u, idx) => {
           let scoreColor = u.score >= 80 ? '#198754' : (u.score >= 50 ? '#ffc107' : '#dc3545');
@@ -1274,17 +1273,25 @@
   }
 
   function exportPerformanceExcel() {
-    if (!latestPerformanceData || latestPerformanceData.length === 0) return alert("No data available to export.");
+    if (!latestPerformanceData || latestPerformanceData.length === 0) {
+      alert("No data available to export.");
+      return;
+    }
 
+    // Prepare CSV Content
     let csvContent = "Name,Department,Total Tasks,On Time,Late,Pending,Performance Score (%)\n";
+    
     latestPerformanceData.forEach(user => {
+      // Escape commas in names or departments by wrapping in quotes
       let safeName = `"${user.name}"`;
       let safeDept = `"${user.dept}"`;
       csvContent += `${safeName},${safeDept},${user.total},${user.onTime},${user.late},${user.pending},${user.score}%\n`;
     });
 
+    // Create a Blob and trigger the download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
+    
     const start = document.getElementById('perfStartDate').value;
     const end = document.getElementById('perfEndDate').value;
     const fileName = `Performance_Report_${start}_to_${end}.csv`;
@@ -1298,27 +1305,33 @@
   }
 
   function exportPerformancePDF() {
-    if (!latestPerformanceData || latestPerformanceData.length === 0) return alert("No data available to export.");
+    if (!latestPerformanceData || latestPerformanceData.length === 0) {
+      alert("No data available to export.");
+      return;
+    }
 
     const { jsPDF } = window.jspdf;
+    // Using landscape mode so the table fits comfortably
     const doc = new jsPDF('landscape'); 
 
     const start = document.getElementById('perfStartDate').value;
     const end = document.getElementById('perfEndDate').value;
     
+    // Add Header Title
     doc.setFontSize(22);
-    doc.setTextColor(13, 110, 253);
+    doc.setTextColor(13, 110, 253); // Primary blue
     doc.text("Task Master - Performance Report", 14, 22);
     
     doc.setFontSize(11);
     doc.setTextColor(100, 100, 100);
     doc.text(`Date Range: ${start} to ${end}`, 14, 30);
 
+    // Columns & Rows mapping
     const tableColumn = ["Name", "Department", "Total Tasks", "On Time", "Late", "Pending", "Score (%)"];
     const tableRows = [];
 
     latestPerformanceData.forEach(user => {
-      tableRows.push([
+      const rowData = [
         user.name,
         user.dept,
         user.total,
@@ -1326,9 +1339,11 @@
         user.late,
         user.pending,
         user.score + "%"
-      ]);
+      ];
+      tableRows.push(rowData);
     });
 
+    // Generate Beautiful Table
     doc.autoTable({
       head: [tableColumn],
       body: tableRows,
@@ -1339,14 +1354,15 @@
       columnStyles: {
         0: { fontStyle: 'bold' },
         2: { halign: 'center' },
-        3: { halign: 'center', textColor: [25, 135, 84] },
-        4: { halign: 'center', textColor: [211, 158, 0] },
-        5: { halign: 'center', textColor: [220, 53, 69] },
-        6: { halign: 'center', fontStyle: 'bold', textColor: [13, 110, 253] }
+        3: { halign: 'center', textColor: [25, 135, 84] }, // Green text for On Time
+        4: { halign: 'center', textColor: [211, 158, 0] }, // Warning text for Late
+        5: { halign: 'center', textColor: [220, 53, 69] }, // Danger text for Pending
+        6: { halign: 'center', fontStyle: 'bold', textColor: [13, 110, 253] } // Blue for Score
       },
       alternateRowStyles: { fillColor: [248, 249, 250] },
     });
 
+    // Save PDF
     doc.save(`Performance_Report_${start}_to_${end}.pdf`);
   }
 
@@ -1376,6 +1392,7 @@
     }
 
     document.getElementById('drillDownTitle').innerText = `${userData.name} - ${titleStr}`;
+    
     const bodyDiv = document.getElementById('drillDownBody');
     bodyDiv.innerHTML = "";
 
@@ -1407,13 +1424,7 @@
     drillDownModal.show();
   }
 
-  function toggleBtn(id, d, t) { 
-    const b = document.getElementById(id); 
-    if(b) {
-      b.disabled = d; 
-      b.innerText = t; 
-    }
-  }
+  function toggleBtn(id, d, t) { const b = document.getElementById(id); b.disabled = d; b.innerText = t; }
 </script>
 </body>
 </html>

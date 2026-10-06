@@ -425,16 +425,26 @@
 
       const rawText = await response.text();
 
-      // Catch Google HTML error page redirects
+      // Check if Google returned an HTML error page and extract the exact message
       if (rawText.trim().startsWith("<") || rawText.trim().startsWith("<!DOCTYPE")) {
-        console.error("Apps Script returned HTML instead of JSON:", rawText);
-        throw new Error("Server returned an HTML error. The backend may have timed out or encountered an unhandled exception.");
+        console.error("Apps Script returned HTML error:", rawText);
+        let extractedMessage = "";
+        try {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(rawText, 'text/html');
+          const errEl = doc.querySelector('#errorMessage, .error-message, title, h1, b, p');
+          extractedMessage = errEl ? errEl.innerText.trim() : "";
+          if (!extractedMessage && doc.body) extractedMessage = doc.body.innerText.trim().slice(0, 160);
+        } catch(e) {
+          extractedMessage = rawText.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+        }
+        throw new Error(extractedMessage || "Backend returned an unhandled HTML error.");
       }
 
       let result;
       try {
         result = JSON.parse(rawText);
-      } catch (e) {
+      } catch (parseErr) {
         throw new Error("Invalid response format: " + rawText.substring(0, 150));
       }
 
@@ -808,9 +818,13 @@
       r.onload = e => {
         callApi('uploadProofAndMarkDone', { base64Data: e.target.result, rowId: id, remarks: rem })
           .then(res => {
-            alert(res === "Success" ? "Task Completed Successfully! ✅" : res);
-            if(res === "Success") loadMyTasks(); 
-            else toggleBtn('btn-' + id, false, '✅ Mark as Completed');
+            if (res === "Success") {
+              alert("Task Completed Successfully! ✅");
+              loadMyTasks();
+            } else {
+              alert(res);
+              toggleBtn('btn-' + id, false, '✅ Mark as Completed');
+            }
           })
           .catch(err => {
             alert("Submission failed: " + err.message);
@@ -821,9 +835,13 @@
     } else {
       callApi('uploadProofAndMarkDone', { base64Data: "", rowId: id, remarks: rem })
         .then(res => {
-          alert(res === "Success" ? "Task Completed Successfully! ✅" : res);
-          if(res === "Success") loadMyTasks(); 
-          else toggleBtn('btn-' + id, false, '✅ Mark as Completed');
+          if (res === "Success") {
+            alert("Task Completed Successfully! ✅");
+            loadMyTasks();
+          } else {
+            alert(res);
+            toggleBtn('btn-' + id, false, '✅ Mark as Completed');
+          }
         })
         .catch(err => {
           alert("Submission failed: " + err.message);
@@ -1041,7 +1059,7 @@
       res.forEach(r => {
         let cls = r.status === 'Done' ? 'badge-done' : 'badge-pending';
         let btn = r.status === 'Done' && r.proof && r.proof !== 'No Proof Required' 
-          ? `<a href="${r.proof}" target="_blank" class="btn btn-sm btn-outline-primary w-100 mt-3 fw-bold">🖼️️ View Uploaded Proof</a>` 
+          ? `<a href="${r.proof}" target="_blank" class="btn btn-sm btn-outline-primary w-100 mt-3 fw-bold">🖼 View Uploaded Proof</a>` 
           : '';
         let noProofTag = r.status === 'Done' && r.proof === 'No Proof Required' 
           ? `<div class="text-center mt-2 small text-muted fst-italic">No photo proof was required</div>` : '';
@@ -1076,7 +1094,7 @@
     }).catch(err => {
       alert("Error fetching report: " + err.message);
       toggleBtn('reportBtn', false, 'Generate Report');
-      rDiv.innerHTML = `<div class="alert alert-danger small fw-bold text-center py-4">Error loading report. Please try again.</div>`;
+      rDiv.innerHTML = `<div class="alert alert-danger small fw-bold text-center py-4">Error loading report: ${err.message}</div>`;
     });
   }
 

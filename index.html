@@ -363,6 +363,41 @@
 
           <!-- Manage Users -->
           <div id="viewUsers" class="d-none">
+            <details class="bg-white border rounded p-3 mb-4" id="handoverPanel" ontoggle="if(this.open) loadHandoverPanel()">
+              <summary class="fw-bold text-primary">Employee Exit / Handover</summary>
+              <p class="small text-muted mt-3">Record the last working date and transfer pending work. Changes apply now; future scheduling is not enabled. Completed tasks stay unchanged.</p>
+              <div id="handoverFields" oninput="invalidateHandover()" onchange="invalidateHandover()">
+                <label class="label-small">Outgoing account</label>
+                <select id="hoSource" class="form-select mb-2" onchange="selectHandoverSource()"></select>
+                <label class="label-small">Outgoing employee name</label>
+                <input id="hoOldName" class="form-control mb-2" maxlength="150" placeholder="Name of employee who left">
+                <p class="small text-muted">If Users already shows the replacement, enter the previous employee's name here.</p>
+                <div class="row g-2 mb-2">
+                  <div class="col-6"><label class="label-small">Last working date</label><input id="hoResign" type="date" class="form-control"></div>
+                  <div class="col-6"><label class="label-small">Handover from</label><input id="hoFrom" type="date" class="form-control"></div>
+                </div>
+                <label class="label-small">Replacement type</label>
+                <select id="hoMode" class="form-select mb-2" onchange="toggleHandoverMode()"><option value="different">Transfer to another employee / email</option><option value="same">New employee on the SAME official email</option></select>
+                <div id="hoDifferent"><label class="label-small">Active replacement employee</label><select id="hoTarget" class="form-select mb-2"></select></div>
+                <div id="hoSame" class="d-none">
+                  <input id="hoNewName" class="form-control mb-2" maxlength="150" placeholder="Replacement employee name">
+                  <input id="hoNewDept" class="form-control mb-2" maxlength="100" placeholder="Replacement department">
+                  <p class="small text-muted">This account stays Active. The new holder is assigned the User role; an old Admin role is not carried over.</p>
+                </div>
+                <label class="d-flex gap-2 align-items-start small my-3"><input type="checkbox" id="hoOverdue" class="form-check-input flex-shrink-0" checked>Include all overdue pending tasks, including tasks before the handover date.</label>
+              </div>
+              <button type="button" class="btn btn-outline-primary w-100" id="hoPreviewBtn" onclick="previewHandover()">Preview handover</button>
+              <div id="hoPreview" class="mt-3" aria-live="polite"></div>
+              <div id="hoConfirm" class="d-none mt-3">
+                <button type="button" class="btn btn-outline-secondary w-100 mb-2" id="hoOtpBtn" onclick="sendHandoverCode()">Send verification code to my admin email</button>
+                <input id="hoOtp" class="form-control mb-2" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6-digit admin verification code">
+                <button type="button" class="btn btn-danger w-100" id="hoApplyBtn" onclick="applyHandover()">Confirm exit &amp; handover</button>
+              </div>
+              <div id="hoMessage" class="small mt-2" role="status"></div>
+              <hr><div class="d-flex align-items-center justify-content-between gap-2"><strong class="small">Recent handovers</strong><button type="button" class="btn btn-sm btn-light" onclick="loadHandoverHistory()">Refresh history</button></div>
+              <div id="hoHistory" class="small mt-2"></div>
+            </details>
+
             <div class="bg-light p-3 rounded border mb-4">
               <h6 class="text-secondary fw-bold mb-3" style="font-size: 13px; text-transform: uppercase;">👤 Add / Edit User</h6>
               <form id="adminUserForm">
@@ -395,7 +430,9 @@
           </div>
 
           <!-- Performance Report -->
+          <!-- Performance totals belong to the email account, across account holders. -->
           <div id="viewPerformance" class="d-none">
+            <p class="small text-muted">Reports follow the email account and show its current name from Users. Totals may include tasks from a previous account holder.</p>
             <div class="bg-light p-3 rounded border mb-4">
               <h6 class="text-secondary fw-bold mb-3" style="font-size: 13px; text-transform: uppercase;">📈 Filter Performance</h6>
               <div class="row g-2 mb-3">
@@ -750,6 +787,7 @@
       };
       populate('deptFilter'); populate('reportDept'); populate('transferDeptFilter'); populate('bulkDept'); populate('manageDeptFilter'); populate('perfDept');
       filterUsersByDept('create'); filterUsersByDept('report'); filterUsersByDept('transfer'); filterUsersByDept('bulk'); filterUsersByDept('manage'); filterUsersByDept('perf');
+      filterManageTasks();
     }).catch(err => showDashboardNotice('User list: ' + err.message));
   }
 
@@ -777,14 +815,18 @@
     selectBox.innerHTML = '<option value="">-- Choose Task --</option>';
     let filteredTasks = allMasterTasks;
     
+    const normalizeEmail = value => String(value || '').trim().toLowerCase();
     if (userEmail !== "All" && userEmail !== "") {
-      const userObj = allActiveUsers.find(u => u.email === userEmail);
-      if(userObj) filteredTasks = filteredTasks.filter(t => t.currentUser === userObj.name);
+      filteredTasks = filteredTasks.filter(t => normalizeEmail(t.assignedEmail) === normalizeEmail(userEmail));
     } else if (dept !== "All") {
-      const deptUsers = allActiveUsers.filter(u => u.dept === dept).map(u => u.name);
-      filteredTasks = filteredTasks.filter(t => deptUsers.includes(t.currentUser));
+      filteredTasks = filteredTasks.filter(t => t.currentDept === dept);
     }
-    
+    if (allMasterTasks.some(t => typeof t.assignedEmail !== 'string')) {
+      selectBox.innerHTML = '<option value="">Deploy the updated Code.gs, then Refresh</option>';
+      updateDateLabel();
+      return;
+    }
+
     filteredTasks.forEach(x => selectBox.innerHTML += `<option value="${x.id}">${escapeHtml(x.name)} (Ends: ${x.currentEnd})</option>`);
     updateDateLabel(); 
   }
@@ -948,7 +990,7 @@
     const t = allMasterTasks.find(x => x.id == tid);
     if(t) {
       l1.innerText = "Current End: " + t.currentEnd;
-      l2.innerText = "Assigned To: " + t.currentUser;
+      l2.innerText = "Assigned To: " + t.currentUser + " (" + t.assignedEmail + ")";
       document.getElementById('newExtensionDate').min = t.currentEnd;
       
       if(t.freq) {
@@ -1213,7 +1255,8 @@
       toggleBtn('saveUserBtn', false, 'Save User');
       resetUserForm();
       loadAdminUsers();
-      loadUsersData(); 
+      loadUsersData();
+      loadMasterTasks();
     }).catch(err => {
       alert("Error saving user: " + err.message);
       toggleBtn('saveUserBtn', false, 'Save User');
@@ -1476,6 +1519,90 @@
       b.disabled = d; 
       b.innerText = t; 
     }
+  }
+  let handoverUsers = [], handoverPreview = null, handoverRequestId = '', handoverBusy = false;
+  function handoverMessage(text, error = false) {
+    const el=document.getElementById('hoMessage'); el.textContent=text; el.className='small mt-2 '+(error?'text-danger':'text-success');
+  }
+  function invalidateHandover() {
+    if (handoverBusy) return;
+    handoverPreview=null; handoverRequestId='';
+    document.getElementById('hoConfirm').classList.add('d-none');
+    document.getElementById('hoPreview').textContent='';
+  }
+  async function loadHandoverPanel() {
+    try {
+      handoverUsers=await callApi('getAllUsersAdmin');
+      const options=handoverUsers.filter(u=>u.email.toLowerCase().trim()!==currentUserEmail.toLowerCase().trim());
+      document.getElementById('hoSource').innerHTML='<option value="">Select outgoing account</option>'+options.map(u=>`<option value="${escapeHtml(u.email)}">${escapeHtml(u.name)} · ${escapeHtml(u.email)} (${escapeHtml(u.status)})</option>`).join('');
+      document.getElementById('hoTarget').innerHTML='<option value="">Select replacement</option>'+options.filter(u=>String(u.status).trim().toLowerCase()==='active').map(u=>`<option value="${escapeHtml(u.email)}">${escapeHtml(u.name)} · ${escapeHtml(u.email)}</option>`).join('');
+      // Form default only; the backend validates dates using the spreadsheet timezone.
+      const date=new Date(), today=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+      ['hoResign','hoFrom'].forEach(id=>{if(!document.getElementById(id).value)document.getElementById(id).value=today;});
+      invalidateHandover(); await loadHandoverHistory();
+    } catch(e) {handoverMessage(e.message,true);}
+  }
+  function selectHandoverSource() {
+    const user=handoverUsers.find(u=>u.email===document.getElementById('hoSource').value);
+    document.getElementById('hoOldName').value=user?user.name:'';
+    document.getElementById('hoNewDept').value=user?user.dept:'';
+    invalidateHandover();
+  }
+  function toggleHandoverMode() {
+    const same=document.getElementById('hoMode').value==='same';
+    document.getElementById('hoSame').classList.toggle('d-none',!same);
+    document.getElementById('hoDifferent').classList.toggle('d-none',same);
+    invalidateHandover();
+  }
+  function handoverForm() {
+    const val=id=>document.getElementById(id).value.trim();
+    return {adminEmail:currentUserEmail,sourceEmail:val('hoSource'),outgoingName:val('hoOldName'),resignDate:val('hoResign'),fromDate:val('hoFrom'),mode:val('hoMode'),targetEmail:val('hoTarget'),newName:val('hoNewName'),newDept:val('hoNewDept'),includeOverdue:document.getElementById('hoOverdue').checked};
+  }
+  async function previewHandover() {
+    invalidateHandover(); handoverMessage('');
+    toggleBtn('hoPreviewBtn',true,'Loading preview...');
+    try {
+      const form=handoverForm(), snapshot=JSON.stringify(form);
+      const data=await callApi('previewEmployeeHandover',{form});
+      if (JSON.stringify(handoverForm())!==snapshot) {handoverMessage('Details changed. Preview again.',true);return;}
+      handoverPreview={...data,form};
+      handoverRequestId=crypto.randomUUID?crypto.randomUUID():('ho_'+Date.now()+'_'+Math.random().toString(36).slice(2));
+      const x=data.summary;
+      document.getElementById('hoPreview').innerHTML=`<div class="border rounded p-3 bg-light"><strong>${escapeHtml(x.oldName)} → ${escapeHtml(x.newName)}</strong><div class="small text-break">${escapeHtml(x.sourceEmail)} → ${escapeHtml(x.targetEmail)}</div><p class="small my-2">Last working: ${escapeHtml(x.resignDate)} · Handover from: ${escapeHtml(x.fromDate)}</p><p class="small mb-1"><b>${x.pendingCount}</b> pending tasks · <b>${x.masterCount}</b> master tasks</p><p class="small mb-1">${x.completedUnchanged} completed records unchanged · ${x.retainedPending} earlier pending tasks excluded</p><p class="small mb-0">${x.sameEmail?'Same account remains Active with the new name and User role.':'Outgoing account becomes Inactive.'}</p></div><details class="small mt-2"><summary>Preview task list (up to 25 each)</summary><b>Master tasks</b><ul>${data.masterTasks.map(t=>`<li>${escapeHtml(t.id)} — ${escapeHtml(t.name)}</li>`).join('')||'<li>None</li>'}</ul><b>Pending tasks</b><ul>${data.pending.map(t=>`<li>${escapeHtml(t.date)} — ${escapeHtml(t.details)}</li>`).join('')||'<li>None</li>'}</ul></details>`;
+      document.getElementById('hoOtp').value='';
+      document.getElementById('hoConfirm').classList.remove('d-none');
+    } catch(e) {handoverMessage(e.message,true);}
+    finally {toggleBtn('hoPreviewBtn',false,'Preview handover');}
+  }
+  async function sendHandoverCode() {
+    toggleBtn('hoOtpBtn',true,'Sending code...');
+    try {handoverMessage(await callApi('sendHandoverOtp',{adminEmail:currentUserEmail}));}
+    catch(e) {handoverMessage(e.message,true);}
+    finally {toggleBtn('hoOtpBtn',false,'Send verification code to my admin email');}
+  }
+  async function applyHandover() {
+    if (!handoverPreview || handoverBusy) return;
+    const otp=document.getElementById('hoOtp').value.trim();
+    if (!/^\d{6}$/.test(otp)) return handoverMessage('Enter your 6-digit admin verification code.',true);
+    if (JSON.stringify(handoverForm())!==JSON.stringify(handoverPreview.form)) return invalidateHandover();
+    const x=handoverPreview.summary;
+    if (!confirm(`Apply this handover now?\n${x.oldName} → ${x.newName}\n${x.pendingCount} pending tasks and ${x.masterCount} master tasks.\nCompleted task history will remain unchanged.`)) return;
+    handoverBusy=true;
+    const controls=document.querySelectorAll('#handoverFields input,#handoverFields select,#hoPreviewBtn,#hoOtpBtn');
+    controls.forEach(el=>el.disabled=true);toggleBtn('hoApplyBtn',true,'Applying handover...');
+    try {
+      const result=await callApi('applyEmployeeHandover',{form:{...handoverPreview.form,previewKey:handoverPreview.previewKey,requestId:handoverRequestId,adminOtp:otp}});
+      handoverMessage(result.message);handoverPreview=null;
+      document.getElementById('hoConfirm').classList.add('d-none');
+      await Promise.allSettled([loadAdminUsers(),loadUsersData(),loadMasterTasks(),loadHandoverHistory()]);
+    } catch(e) {handoverMessage(e.message+' Check Recent handovers before retrying. Retrying this same preview uses the same request ID.',true);await loadHandoverHistory();}
+    finally {handoverBusy=false;controls.forEach(el=>el.disabled=false);toggleBtn('hoApplyBtn',false,'Confirm exit & handover');}
+  }
+  async function loadHandoverHistory() {
+    try {
+      const rows=await callApi('getHandoverHistory',{adminEmail:currentUserEmail});
+      document.getElementById('hoHistory').innerHTML=rows.map(r=>`<div class="border-bottom py-2 text-break"><b>${escapeHtml(r.oldName)} → ${escapeHtml(r.newName)}</b><br>${escapeHtml(r.status)} · ${escapeHtml(r.at)}<br>Last working: ${escapeHtml(r.resignDate)} · ${r.pending} pending / ${r.masters} master tasks<br><span class="text-muted">${escapeHtml(r.sourceEmail)} → ${escapeHtml(r.targetEmail)}</span></div>`).join('')||'No handovers recorded yet.';
+    } catch(e) {document.getElementById('hoHistory').textContent=e.message;}
   }
 </script>
 </body>
